@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KLMZ Storage</title>
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuración de fuente Inter y fondo oscuro */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        /* Estilo para el área de drop para que cubra la zona */
+        #drop-area.drag-active {
+            border-color: #4f46e5; /* indigo-600 */
+            background-color: #1f2937; /* bg-gray-800/70 */
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div class="container mx-auto p-4 sm:p-8">
+
+        <!-- Encabezado -->
+        <header class="mb-8">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400">
+                KLMZ Storage
+            </h1>
+            <p id="auth-status" class="text-gray-400 mt-1">Conectando...</p>
+        </header>
+
+        <!-- Sección de Subida y Mensajes -->
+        <div id="upload-section" class="mb-8">
+            <!-- Área de Arrastrar y Soltar -->
+            <div id="drop-area" class="relative p-8 rounded-xl border-4 border-gray-600 border-dashed bg-gray-800/50 transition-all duration-300">
+                <input
+                    type="file"
+                    id="fileInput"
+                    class="hidden"
+                    accept="image/*,video/*"
+                    onchange="handleFiles(this.files)"
+                />
+                <div class="flex flex-col items-center justify-center text-center">
+                    <div id="upload-indicator" class="hidden flex items-center space-x-2 text-indigo-400">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-lg font-medium">Subiendo...</span>
+                    </div>
+
+                    <div id="upload-prompt" class="block">
+                        <svg class="w-12 h-12 text-indigo-400 mb-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 014 4v2m-5 4H9m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                        <p class="text-gray-300 mb-4">Arrastra y suelta tu video o foto aquí, o haz clic.</p>
+                        <button
+                            onclick="document.getElementById('fileInput').click()"
+                            id="upload-button"
+                            class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out disabled:opacity-50"
+                        >
+                            Seleccionar Archivo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenedor de Mensajes -->
+            <div id="message-box" class="mt-4 p-3 rounded-lg text-center text-sm font-medium bg-transparent text-white hidden"></div>
+        </div>
+
+        <!-- Lista de Archivos -->
+        <section>
+            <h2 class="text-2xl font-semibold text-gray-200 mb-4">Mis Archivos</h2>
+            <div id="file-list" class="space-y-3">
+                <p id="empty-state" class="text-gray-500 text-center py-10">
+                    Sube tu primer archivo para verlo aquí.
+                </p>
+                <!-- Los archivos se renderizarán aquí -->
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Script de Firebase (Módulos) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables Globales
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isUploading = false;
+
+        // --- CONFIGURACIÓN DE R2 ---
+        const R2_BUCKET_NAME = 'klmzstorage';
+        
+        // !!! URL REAL DEL WORKER DESPLEGADO !!!
+        // Esta URL apunta a tu Worker recién desplegado en Cloudflare.
+        const WORKER_ENDPOINT = 'https://klmz-r2-signer-cli-production.klmzr.workers.dev/get-signed-url'; 
+
+        // URL pública de tu bucket (utilizada para generar enlaces de descarga)
+        const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // FIX APLICADO: Se cambió la referencia de 'initialAuthToken' a '__initial_auth_token'
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
+
+        // Elementos del DOM
+        const authStatus = document.getElementById('auth-status');
+        const fileList = document.getElementById('file-list');
+        const emptyState = document.getElementById('empty-state');
+        const messageBox = document.getElementById('message-box');
+        const uploadIndicator = document.getElementById('upload-indicator');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const uploadButton = document.getElementById('upload-button');
+        const fileInput = document.getElementById('fileInput');
+
+        // --- Utilidades ---
+
+        /**
+         * Muestra un mensaje al usuario.
+         * @param {string} msg - El mensaje a mostrar.
+         * @param {string} type - 'success', 'error', o 'info'.
+         */
+        function showMessage(msg, type = 'info') {
+            if (!msg) {
+                messageBox.classList.add('hidden');
+                return;
+            }
+
+            messageBox.textContent = msg;
+            messageBox.classList.remove('hidden', 'bg-red-900/50', 'bg-green-900/50', 'text-red-300', 'text-green-300', 'text-white', 'bg-indigo-900/50', 'text-indigo-300');
+
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-900/50', 'text-red-300');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-900/50', 'text-green-300');
+            } else {
+                messageBox.classList.add('bg-indigo-900/50', 'text-indigo-300');
+            }
+
+            // Ocultar mensajes de éxito/info después de 5 segundos
+            if (type !== 'error') {
+                setTimeout(() => messageBox.classList.add('hidden'), 5000);
+            }
+        }
+
+        /**
+         * Formatea el tamaño de bytes a una cadena legible (KB, MB, GB).
+         */
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        /**
+         * Devuelve el SVG del ícono basado en el tipo MIME.
+         */
+        function getFileIcon(type) {
+            if (type.startsWith('video/')) {
+                // Icono de Video
+                return `<svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.7V15.3a1 1 0 01-1.447.886L15 14M4 14V9a2 2 0 012-2h10a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
+                </svg>`;
+            } else if (type.startsWith('image/')) {
+                // Icono de Imagen
+                return `<svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-12 5h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>`;
+            } else {
+                // Icono de Archivo Genérico
+                return `<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>`;
+            }
+        }
+
+        /**
+         * Renderiza un elemento de archivo en la lista.
+         */
+        function renderFileItem(file) {
+            const date = new Date(file.uploadedAt);
+            // La URL pública utiliza la clave guardada en Firestore
+            const publicUrl = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`; 
+
+            return `
+                <div class="flex items-center justify-between p-4 bg-gray-800 rounded-lg shadow-md hover:bg-gray-700/70 transition duration-150 ease-in-out">
+                    <div class="flex items-center space-x-4 min-w-0">
+                        ${getFileIcon(file.type)}
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold truncate text-white">${file.name}</p>
+                            <p class="text-xs text-gray-400">${formatFileSize(file.size)}</p>
+                        </div>
+                    </div>
+                    <div class="text-right ml-4 flex-shrink-0 flex items-center space-x-2">
+                        <a href="${publicUrl}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-xs font-medium transition-colors">
+                            Ver/Descargar
+                        </a>
+                        <p class="text-xs text-gray-500">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Lógica de Subida a R2 ---
+
+        /**
+         * Sube el archivo a R2 utilizando una URL firmada obtenida del Worker.
+         */
+        async function uploadToR2(file) {
+            if (isUploading || !db || !userId) {
+                showMessage("La aplicación no está lista o ya está subiendo un archivo.", 'error');
+                return;
+            }
+
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                showMessage(`El archivo "${file.name}" excede el límite de ${formatFileSize(MAX_FILE_SIZE_BYTES)}.`, 'error');
+                return;
+            }
+
+            isUploading = true;
+            uploadPrompt.classList.add('hidden');
+            uploadIndicator.classList.remove('hidden');
+            uploadButton.disabled = true;
+            fileInput.disabled = true;
+
+            // Clave única en R2: userId/nombre_archivo.extension
+            const objectKey = `${userId}/${file.name}`; 
+
+            try {
+                // PASO 1: SOLICITAR URL FIRMADA AL WORKER (Backend)
+                showMessage(`Paso 1/2: Solicitando URL firmada para subir "${file.name}"...`);
+
+                const signedUrlResponse = await fetch(`${WORKER_ENDPOINT}?key=${objectKey}&contentType=${file.type}`);
+                
+                if (!signedUrlResponse.ok) {
+                    const errorDetails = await signedUrlResponse.text();
+                    throw new Error(`Error al obtener URL firmada. Estado: ${signedUrlResponse.status}. Detalle: ${errorDetails}`);
+                }
+                
+                const { signedUrl } = await signedUrlResponse.json(); 
+                
+                if (!signedUrl) {
+                    throw new Error("El Worker no devolvió una 'signedUrl' válida.");
+                }
+
+
+                // PASO 2: REALIZAR LA SUBIDA DEL ARCHIVO DIRECTAMENTE A R2 USANDO LA URL FIRMADA
+                showMessage(`Paso 2/2: Subiendo "${file.name}" directamente a R2...`);
+                
+                const uploadResponse = await fetch(signedUrl, {
+                    method: 'PUT',
+                    body: file,
+                    headers: {
+                        'Content-Type': file.type,
+                    }
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorBody = await uploadResponse.text();
+                    throw new Error(`Fallo en la subida a R2. Estado: ${uploadResponse.status}. Respuesta de R2: ${errorBody}`);
+                }
+
+                // PASO 3: GUARDAR METADATOS EN FIRESTORE
+                const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
+                
+                await addDoc(filesCollectionRef, {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    r2Key: objectKey, 
+                    r2Bucket: R2_BUCKET_NAME,
+                    uploaderId: userId,
+                    uploadedAt: serverTimestamp(),
+                });
+
+                showMessage(`¡"${file.name}" subido a R2 y metadatos guardados con éxito!`, 'success');
+
+            } catch (error) {
+                console.error("Error crítico durante la subida:", error);
+                showMessage(`Error de Subida: ${error.message}`, 'error');
+            } finally {
+                isUploading = false;
+                uploadIndicator.classList.add('hidden');
+                uploadPrompt.classList.remove('hidden');
+                uploadButton.disabled = false;
+                fileInput.disabled = false;
+                fileInput.value = ''; // Limpiar el input para permitir subir el mismo archivo
+            }
+        }
+
+        /**
+         * Maneja los archivos seleccionados por el usuario.
+         */
+        window.handleFiles = function (filesList) {
+            if (isUploading) return;
+
+            if (!filesList || filesList.length === 0) {
+                showMessage('Por favor, selecciona un archivo.');
+                return;
+            }
+
+            // Solo procesar el primer archivo
+            const file = filesList[0];
+            if (!file.type.startsWith('video/') && !file.type.startsWith('image/')) {
+                showMessage('Solo se permiten archivos de video e imagen (fotos).', 'error');
+                return;
+            }
+
+            uploadToR2(file);
+        }
+
+        // --- Inicialización y Autenticación ---
+
+        /**
+         * Inicializa Firebase, autentica y configura el listener de Firestore.
+         */
+        async function initApp() {
+            if (Object.keys(firebaseConfig).length === 0) {
+                authStatus.textContent = 'Error: Configuración de Firebase no disponible.';
+                showMessage('Error: Configuración de Firebase no disponible.', 'error');
+                return;
+            }
+
+            try {
+                // Inicialización
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                // setLogLevel('Debug'); // Descomentar para logs de Firebase
+
+                // Autenticación con Listener
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        authStatus.textContent = `Usuario: ${userId}`;
+                        setupFirestoreListener();
+                    } else {
+                        // Intentar autenticación al cargar
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Error en la autenticación:", error);
+                            authStatus.textContent = "Error de autenticación.";
+                            showMessage("Error de autenticación. Consulta la consola.", 'error');
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error("Error al inicializar la aplicación:", e);
+                authStatus.textContent = 'Error al iniciar la app.';
+                showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
+            }
+        }
+
+        /**
+         * Configura el listener de Firestore para la colección de archivos.
+         */
+        function setupFirestoreListener() {
+            if (!db || !userId) return;
+
+            const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
+            const q = query(filesCollectionRef);
+
+            onSnapshot(q, (snapshot) => {
+                let htmlContent = '';
+                let fileCount = 0;
+
+                const fetchedFiles = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    // Convertir el Timestamp de Firestore a fecha si existe
+                    uploadedAt: doc.data().uploadedAt ? doc.data().uploadedAt.toDate() : new Date(0)
+                }));
+
+                // Ordenar por fecha de subida (más reciente primero)
+                fetchedFiles.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+                fetchedFiles.forEach(file => {
+                    // Asegurarse de que uploadedAt sea un formato de fecha para renderizar
+                    const displayFile = {
+                        ...file,
+                        uploadedAt: file.uploadedAt.toLocaleString()
+                    };
+                    htmlContent += renderFileItem(displayFile);
+                    fileCount++;
+                });
+
+                fileList.innerHTML = htmlContent;
+
+                if (fileCount === 0) {
+                    emptyState.classList.remove('hidden');
+                } else {
+                    emptyState.classList.add('hidden');
+                }
+            }, (error) => {
+                console.error("Error al escuchar archivos:", error);
+                showMessage("Error al cargar los archivos: " + error.message, 'error');
+            });
+        }
+
+        // --- Lógica de Drag and Drop ---
+
+        const dropArea = document.getElementById('drop-area');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.classList.add('drag-active');
+        }
+
+        function unhighlight() {
+            dropArea.classList.remove('drag-active');
+        }
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            window.handleFiles(files);
+        }
+
+        // Iniciar la aplicación al cargar la página
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
