@@ -108,8 +108,32 @@
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        // FIX APLICADO: Se cambió la referencia de 'initialAuthToken' a '__initial_auth_token'
+        
+        // Definición de una configuración de Firebase MOCK para evitar errores de inicialización 
+        // cuando el entorno no inyecta las variables (que es el problema actual).
+        const MOCK_FIREBASE_CONFIG = {
+            apiKey: "MOCK_API_KEY_TO_ALLOW_INIT", 
+            authDomain: "mock-storage.firebaseapp.com",
+            projectId: "mock-storage-project",
+            storageBucket: "mock-storage.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdef01234567890abcde",
+        };
+
+        let parsedConfig = {};
+        try {
+            // Intenta parsear la configuración real
+            parsedConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch(e) {
+            console.error("Error al parsear __firebase_config.", e);
+        }
+
+        // Si la configuración real no tiene 'apiKey' o está vacía, usamos la MOCK.
+        const firebaseConfig = (Object.keys(parsedConfig).length > 0 && parsedConfig.apiKey) 
+                             ? parsedConfig 
+                             : MOCK_FIREBASE_CONFIG;
+
+
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
 
@@ -275,17 +299,21 @@
                 // PASO 3: GUARDAR METADATOS EN FIRESTORE
                 const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
                 
-                await addDoc(filesCollectionRef, {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    r2Key: objectKey, 
-                    r2Bucket: R2_BUCKET_NAME,
-                    uploaderId: userId,
-                    uploadedAt: serverTimestamp(),
-                });
-
-                showMessage(`¡"${file.name}" subido a R2 y metadatos guardados con éxito!`, 'success');
+                // Solo intentamos guardar si no estamos en modo MOCK (la configuración MOCK fallará)
+                if (firebaseConfig !== MOCK_FIREBASE_CONFIG) {
+                    await addDoc(filesCollectionRef, {
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        r2Key: objectKey, 
+                        r2Bucket: R2_BUCKET_NAME,
+                        uploaderId: userId,
+                        uploadedAt: serverTimestamp(),
+                    });
+                    showMessage(`¡"${file.name}" subido a R2 y metadatos guardados con éxito!`, 'success');
+                } else {
+                    showMessage(`¡"${file.name}" subido a R2 con éxito! (Metadatos NO guardados en modo MOCK)`, 'success');
+                }
 
             } catch (error) {
                 console.error("Error crítico durante la subida:", error);
@@ -327,30 +355,30 @@
          * Inicializa Firebase, autentica y configura el listener de Firestore.
          */
         async function initApp() {
-            // Verifica si la configuración es válida (más estricto)
-            const isConfigValid = firebaseConfig && Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey;
-
-            if (!isConfigValid) {
-                // Línea de depuración para ver qué se recibió
-                console.error("Firebase Configuración: objeto recibido es inválido o vacío. Valor:", firebaseConfig); 
-                authStatus.textContent = 'Error: Configuración de Firebase no disponible.';
-                showMessage('Error: Configuración de Firebase no disponible.', 'error');
-                return;
+            const isUsingMock = (firebaseConfig === MOCK_FIREBASE_CONFIG);
+            
+            if (isUsingMock) {
+                console.warn("ADVERTENCIA: Usando configuración MOCK de Firebase. La subida a R2 funcionará, pero los metadatos NO se guardarán permanentemente.");
+                authStatus.textContent = 'Modo MOCK: Conectado (Sin persistencia de metadatos)';
             }
-
+            
             try {
                 // Inicialización
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                // setLogLevel('Debug'); // Descomentar para logs de Firebase
-
+                
+                // Si estamos usando MOCK, la inicialización de Firestore fallará, 
+                // pero la inicialización de la app pasa.
+                
                 // Autenticación con Listener
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        authStatus.textContent = `Usuario: ${userId}`;
-                        setupFirestoreListener();
+                        if (!isUsingMock) {
+                             authStatus.textContent = `Usuario: ${userId}`;
+                             setupFirestoreListener();
+                        }
                     } else {
                         // Intentar autenticación al cargar
                         try {
@@ -379,6 +407,9 @@
          */
         function setupFirestoreListener() {
             if (!db || !userId) return;
+            
+            // Si estamos en modo MOCK, evitamos configurar el listener, ya que fallaría
+            if (firebaseConfig === MOCK_FIREBASE_CONFIG) return;
 
             const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
             const q = query(filesCollectionRef);
