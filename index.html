@@ -244,8 +244,15 @@
          * Sube el archivo a R2 utilizando una URL firmada obtenida del Worker.
          */
         async function uploadToR2(file) {
-            if (isUploading || !db || !userId) {
-                showMessage("La aplicación no está lista o ya está subiendo un archivo.", 'error');
+            // FIX: Simplificamos el chequeo. Si isUploading es true, bloqueamos.
+            if (isUploading) {
+                showMessage("Ya hay una subida en curso.", 'error');
+                return;
+            }
+            
+            // Si el userId no está asignado (o estamos en una fase muy temprana), bloqueamos.
+            if (!userId) {
+                showMessage("La aplicación no se ha inicializado completamente. Inténtalo de nuevo.", 'error');
                 return;
             }
 
@@ -365,6 +372,10 @@
                 // y saltamos la autenticación de Firebase que está fallando.
                 userId = crypto.randomUUID(); 
                 authStatus.textContent = `Modo MOCK: R2 Activo (${userId.substring(0, 8)}...)`;
+                
+                // FIX: Asegurar que el botón esté habilitado al terminar la inicialización en MOCK
+                uploadButton.disabled = false;
+
 
             } else { // Intento de usar la configuración de Firebase real
                 try {
@@ -379,6 +390,7 @@
                             userId = user.uid;
                             authStatus.textContent = `Usuario: ${userId}`;
                             setupFirestoreListener();
+                            uploadButton.disabled = false; // Habilitar botón al autenticar
                         } else {
                             // Intentar autenticación al cargar
                             try {
@@ -391,6 +403,7 @@
                                 console.error("Error en la autenticación:", error);
                                 authStatus.textContent = "Error de autenticación.";
                                 showMessage("Error de autenticación. Consulta la consola.", 'error');
+                                uploadButton.disabled = true; // Deshabilitar si falla
                             }
                         }
                     });
@@ -398,6 +411,7 @@
                     console.error("Error al inicializar la aplicación con Firebase REAL:", e);
                     authStatus.textContent = 'Error al iniciar la app.';
                     showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
+                    uploadButton.disabled = true;
                 }
             }
         }
