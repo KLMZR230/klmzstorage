@@ -327,9 +327,12 @@
          * Inicializa Firebase, autentica y configura el listener de Firestore.
          */
         async function initApp() {
-            if (Object.keys(firebaseConfig).length === 0) {
-                // Línea de depuración añadida
-                console.log("Firebase Configuración recibida:", firebaseConfig); 
+            // Verifica si la configuración es válida (más estricto)
+            const isConfigValid = firebaseConfig && Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey;
+
+            if (!isConfigValid) {
+                // Línea de depuración para ver qué se recibió
+                console.error("Firebase Configuración: objeto recibido es inválido o vacío. Valor:", firebaseConfig); 
                 authStatus.textContent = 'Error: Configuración de Firebase no disponible.';
                 showMessage('Error: Configuración de Firebase no disponible.', 'error');
                 return;
