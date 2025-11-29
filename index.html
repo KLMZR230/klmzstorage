@@ -328,6 +328,8 @@
          */
         async function initApp() {
             if (Object.keys(firebaseConfig).length === 0) {
+                // Línea de depuración añadida
+                console.log("Firebase Configuración recibida:", firebaseConfig); 
                 authStatus.textContent = 'Error: Configuración de Firebase no disponible.';
                 showMessage('Error: Configuración de Firebase no disponible.', 'error');
                 return;
