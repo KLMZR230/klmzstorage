@@ -112,7 +112,8 @@
         // Definición de una configuración de Firebase MOCK para evitar errores de inicialización 
         // cuando el entorno no inyecta las variables (que es el problema actual).
         const MOCK_FIREBASE_CONFIG = {
-            apiKey: "MOCK_API_KEY_TO_ALLOW_INIT", 
+            // Clave MOCK inválida para forzar que Firebase Auth no se use con credenciales MOCK.
+            apiKey: "INVALID_MOCK_KEY_FOR_SAFETY", 
             authDomain: "mock-storage.firebaseapp.com",
             projectId: "mock-storage-project",
             storageBucket: "mock-storage.appspot.com",
@@ -359,46 +360,45 @@
             
             if (isUsingMock) {
                 console.warn("ADVERTENCIA: Usando configuración MOCK de Firebase. La subida a R2 funcionará, pero los metadatos NO se guardarán permanentemente.");
-                authStatus.textContent = 'Modo MOCK: Conectado (Sin persistencia de metadatos)';
-            }
-            
-            try {
-                // Inicialización
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
                 
-                // Si estamos usando MOCK, la inicialización de Firestore fallará, 
-                // pero la inicialización de la app pasa.
-                
-                // Autenticación con Listener
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        if (!isUsingMock) {
-                             authStatus.textContent = `Usuario: ${userId}`;
-                             setupFirestoreListener();
-                        }
-                    } else {
-                        // Intentar autenticación al cargar
-                        try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (error) {
-                            console.error("Error en la autenticación:", error);
-                            authStatus.textContent = "Error de autenticación.";
-                            showMessage("Error de autenticación. Consulta la consola.", 'error');
-                        }
-                    }
-                });
+                // FIX: Si estamos en modo MOCK, asignamos un userId temporal
+                // y saltamos la autenticación de Firebase que está fallando.
+                userId = crypto.randomUUID(); 
+                authStatus.textContent = `Modo MOCK: R2 Activo (${userId.substring(0, 8)}...)`;
 
-            } catch (e) {
-                console.error("Error al inicializar la aplicación:", e);
-                authStatus.textContent = 'Error al iniciar la app.';
-                showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
+            } else { // Intento de usar la configuración de Firebase real
+                try {
+                    // Inicialización de la app (Auth y Firestore)
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    
+                    // Autenticación con Listener
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            authStatus.textContent = `Usuario: ${userId}`;
+                            setupFirestoreListener();
+                        } else {
+                            // Intentar autenticación al cargar
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    await signInAnonymously(auth);
+                                }
+                            } catch (error) {
+                                console.error("Error en la autenticación:", error);
+                                authStatus.textContent = "Error de autenticación.";
+                                showMessage("Error de autenticación. Consulta la consola.", 'error');
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error("Error al inicializar la aplicación con Firebase REAL:", e);
+                    authStatus.textContent = 'Error al iniciar la app.';
+                    showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
+                }
             }
         }
 
