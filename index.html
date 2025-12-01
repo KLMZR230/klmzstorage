@@ -80,7 +80,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables Globales
@@ -91,38 +91,30 @@
         let isUploading = false;
         let authReady = false; 
 
+        // ----------------------------------------------------------------------------------
+        // ATENCIÓN: Esta es la configuración de Firebase de tu proyecto 'klmzstorage'.
+        // La hemos incluido directamente para garantizar que la inicialización funcione de inmediato.
+        const firebaseConfig = {
+            apiKey: "AIzaSyClcgVHympGTuj7h4hgqxXfVcpqwWaKsyg",
+            authDomain: "klmzstorage.firebaseapp.com",
+            projectId: "klmzstorage", // Este es tu appId real
+            storageBucket: "klmzstorage.firebasestorage.app",
+            messagingSenderId: "685345835162",
+            appId: "1:685345835162:web:be21ed8302df42360f3723"
+        };
+        // ----------------------------------------------------------------------------------
+
         // --- CONFIGURACIÓN DE R2 ---
         const R2_BUCKET_NAME = 'klmzstorage';
         
-        // !!! URL REAL DEL WORKER DESPLEGADO !!!
+        // URL del Worker (¡VERIFICADA!)
         const WORKER_ENDPOINT = 'https://klmz-r2-signer-cli-production.klmzr.workers.dev/get-signed-url'; 
 
-        // URL pública de tu bucket (utilizada para generar enlaces de descarga)
+        // URL pública de tu bucket
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        // Definición de una configuración de Firebase MOCK para evitar errores de inicialización 
-        const MOCK_FIREBASE_CONFIG = {
-            apiKey: "INVALID_MOCK_KEY_FOR_SAFETY", 
-            authDomain: "mock-storage.firebaseapp.com",
-            projectId: "mock-storage-project",
-            storageBucket: "mock-storage.appspot.com",
-            messagingSenderId: "123456789012",
-            appId: "1:123456789012:web:abcdef01234567890abcde",
-        };
-
-        let parsedConfig = {};
-        try {
-            parsedConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        } catch(e) {
-            console.error("Error al parsear __firebase_config.", e);
-        }
-
-        const firebaseConfig = (Object.keys(parsedConfig).length > 0 && parsedConfig.apiKey) 
-                             ? parsedConfig 
-                             : MOCK_FIREBASE_CONFIG;
-
+        // Usamos el projectId de Firebase como appId para la ruta de la colección
+        const appId = firebaseConfig.projectId;
 
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
@@ -137,7 +129,7 @@
         const uploadButton = document.getElementById('upload-button');
         const fileInput = document.getElementById('fileInput');
 
-        // --- Utilidades ---
+        // --- Utilidades (Se mantienen) ---
         function showMessage(msg, type = 'info') {
             if (!msg) {
                 messageBox.classList.add('hidden');
@@ -207,7 +199,8 @@
             `;
         }
 
-        // --- Lógica de Subida a R2 ---
+
+        // --- Lógica de Subida a R2 y Firestore ---
         async function uploadToR2(file) {
             if (!authReady || !userId) {
                 showMessage("La aplicación no está lista o la autenticación falló. Por favor, espera unos segundos e inténtalo de nuevo.", 'error');
@@ -231,7 +224,6 @@
             uploadButton.disabled = true;
             fileInput.disabled = true;
 
-            // Usamos un UUID para la key para garantizar unicidad y evitar el error de llave
             const fileNameWithoutExtension = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
             const uniqueKey = `${userId}/${crypto.randomUUID()}-${fileNameWithoutExtension}${fileExtension}`; 
@@ -239,7 +231,7 @@
 
 
             try {
-                // PASO 1: SOLICITAR URL FIRMADA AL WORKER (Backend)
+                // PASO 1/3: SOLICITAR URL FIRMADA AL WORKER (Backend)
                 showMessage(`Paso 1/3: Solicitando URL firmada para subir "${file.name}"...`);
 
                 const signedUrlResponse = await fetch(`${WORKER_ENDPOINT}?key=${objectKey}&contentType=${file.type}`);
@@ -256,7 +248,7 @@
                 }
 
 
-                // PASO 2: REALIZAR LA SUBIDA DEL ARCHIVO DIRECTAMENTE A R2 USANDO LA URL FIRMADA
+                // PASO 2/3: REALIZAR LA SUBIDA DEL ARCHIVO DIRECTAMENTE A R2 USANDO LA URL FIRMADA
                 showMessage(`Paso 2/3: Subiendo "${file.name}" directamente a R2...`);
                 
                 const uploadResponse = await fetch(signedUrl, {
@@ -272,28 +264,24 @@
                     throw new Error(`Fallo en la subida a R2. Estado: ${uploadResponse.status}. Respuesta de R2: ${errorBody}.`); 
                 }
 
-                // PASO 3: GUARDAR METADATOS EN FIRESTORE
+                // PASO 3/3: GUARDAR METADATOS EN FIRESTORE (Corrección del error de sintaxis)
                 showMessage(`Paso 3/3: Guardando metadatos en Firestore...`);
                 
-                if (firebaseConfig !== MOCK_FIREBASE_CONFIG) {
-                    // CORRECCIÓN CLAVE: Usar doc() y collection() para construir la ruta correctamente
-                    // Soluciona el error: "Expected first argument to collection() to be..."
-                    const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                    const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
-                    
-                    await addDoc(filesCollectionRef, {
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        r2Key: objectKey, 
-                        r2Bucket: R2_BUCKET_NAME,
-                        uploaderId: userId,
-                        uploadedAt: serverTimestamp(),
-                    });
-                    showMessage(`¡"${file.name}" subido a R2 y metadatos guardados con éxito!`, 'success');
-                } else {
-                    showMessage(`¡"${file.name}" subido a R2 con éxito! (Metadatos NO guardados en modo MOCK)`, 'success');
-                }
+                // Usamos doc() y collection() para construir la ruta multi-nivel correctamente.
+                // Esta corrección soluciona el error: "Expected first argument to collection to be..."
+                const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
+                
+                await addDoc(filesCollectionRef, {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    r2Key: objectKey, 
+                    r2Bucket: R2_BUCKET_NAME,
+                    uploaderId: userId,
+                    uploadedAt: serverTimestamp(),
+                });
+                showMessage(`¡"${file.name}" subido a R2 y metadatos guardados con éxito!`, 'success');
 
             } catch (error) {
                 console.error("Error crítico durante la subida:", error);
@@ -330,62 +318,52 @@
             uploadToR2(file);
         }
 
-        // --- Inicialización y Autenticación ---
+        // --- Inicialización y Autenticación (Se mantiene la lógica REAL) ---
 
         async function initApp() {
-            const isUsingMock = (firebaseConfig === MOCK_FIREBASE_CONFIG);
-            
-            if (isUsingMock) {
-                console.warn("ADVERTENCIA: Usando configuración MOCK de Firebase. La subida a R2 funcionará, pero los metadatos NO se guardarán permanentemente.");
+            try {
+                // Inicializa Firebase con tu configuración REAL
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
                 
-                userId = crypto.randomUUID(); 
-                authStatus.textContent = `Modo MOCK: R2 Activo (${userId.substring(0, 8)}...)`;
-                authReady = true; 
-                uploadButton.disabled = false;
-
-            } else { 
-                try {
-                    app = initializeApp(firebaseConfig);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-                    
-                    onAuthStateChanged(auth, async (user) => {
-                        if (user) {
-                            userId = user.uid;
-                            authStatus.textContent = `Usuario: ${userId}`;
-                            setupFirestoreListener();
-                            authReady = true; 
-                            uploadButton.disabled = false; 
-                        } else {
-                            try {
-                                if (initialAuthToken) {
-                                    await signInWithCustomToken(auth, initialAuthToken);
-                                } else {
-                                    await signInAnonymously(auth);
-                                }
-                            } catch (error) {
-                                console.error("Error en la autenticación:", error);
-                                authStatus.textContent = "Error de autenticación.";
-                                showMessage("Error de autenticación. Consulta la consola.", 'error');
-                                uploadButton.disabled = true; 
-                                authReady = true; // Marcar como listo incluso si la autenticación falla, para evitar bloqueo infinito
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        authStatus.textContent = `Usuario: ${userId}`;
+                        setupFirestoreListener();
+                        authReady = true; 
+                        uploadButton.disabled = false; 
+                    } else {
+                        try {
+                            // Intenta iniciar sesión anónimamente si no hay token personalizado
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
                             }
+                        } catch (error) {
+                            console.error("Error en la autenticación:", error);
+                            authStatus.textContent = "Error de autenticación.";
+                            showMessage("Error de autenticación. Consulta la consola.", 'error');
+                            uploadButton.disabled = true; 
+                            authReady = true; 
                         }
-                    });
-                } catch (e) {
-                    console.error("Error al inicializar la aplicación con Firebase REAL:", e);
-                    authStatus.textContent = 'Error al iniciar la app.';
-                    showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
-                    uploadButton.disabled = true;
-                    authReady = true; 
-                }
+                    }
+                });
+            } catch (e) {
+                console.error("Error al inicializar la aplicación con Firebase:", e);
+                authStatus.textContent = 'Error al iniciar la app.';
+                showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
+                uploadButton.disabled = true;
+                authReady = true; 
             }
         }
 
         function setupFirestoreListener() {
-            if (!db || !userId || firebaseConfig === MOCK_FIREBASE_CONFIG) return;
+            if (!db || !userId) return;
 
-            // CORRECCIÓN CLAVE: Usar doc() y collection() para construir la ruta correctamente
+            // Corrección en la referencia: Necesaria para que la lectura funcione
             const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
             const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
             const q = query(filesCollectionRef);
@@ -417,11 +395,12 @@
                 }
             }, (error) => {
                 console.error("Error al escuchar archivos:", error);
+                // Si ves un error aquí, es 100% debido a las Reglas de Seguridad.
                 showMessage("Error al cargar los archivos: " + error.message, 'error');
             });
         }
 
-        // --- Lógica de Drag and Drop ---
+        // --- Lógica de Drag and Drop (Se mantiene) ---
         const dropArea = document.getElementById('drop-area');
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
