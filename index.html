@@ -89,7 +89,6 @@
         let auth;
         let userId = null;
         let isUploading = false;
-        // CORRECCIÓN 2: Nuevo indicador de estado de autenticación
         let authReady = false; 
 
         // --- CONFIGURACIÓN DE R2 ---
@@ -139,7 +138,6 @@
         const fileInput = document.getElementById('fileInput');
 
         // --- Utilidades ---
-        // ... (El resto de las funciones utilitarias como showMessage, formatFileSize, etc., se mantienen sin cambios)
         function showMessage(msg, type = 'info') {
             if (!msg) {
                 messageBox.classList.add('hidden');
@@ -209,10 +207,8 @@
             `;
         }
 
-
         // --- Lógica de Subida a R2 ---
         async function uploadToR2(file) {
-            // CORRECCIÓN 3: Doble chequeo de estado de autenticación (evita "Falta el parámetro key")
             if (!authReady || !userId) {
                 showMessage("La aplicación no está lista o la autenticación falló. Por favor, espera unos segundos e inténtalo de nuevo.", 'error');
                 console.error("Fallo de subida: authReady:", authReady, "userId:", userId);
@@ -235,23 +231,21 @@
             uploadButton.disabled = true;
             fileInput.disabled = true;
 
-            // CORRECCIÓN 4: Usar un ID único global (UUID) junto al nombre para evitar colisiones 
+            // Usamos un UUID para la key para garantizar unicidad y evitar el error de llave
             const fileNameWithoutExtension = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
-            // Usamos un UUID para la key para garantizar unicidad y evitar el error de llave
             const uniqueKey = `${userId}/${crypto.randomUUID()}-${fileNameWithoutExtension}${fileExtension}`; 
             const objectKey = uniqueKey; 
 
 
             try {
                 // PASO 1: SOLICITAR URL FIRMADA AL WORKER (Backend)
-                showMessage(`Paso 1/2: Solicitando URL firmada para subir "${file.name}"...`);
+                showMessage(`Paso 1/3: Solicitando URL firmada para subir "${file.name}"...`);
 
                 const signedUrlResponse = await fetch(`${WORKER_ENDPOINT}?key=${objectKey}&contentType=${file.type}`);
                 
                 if (!signedUrlResponse.ok) {
                     const errorDetails = await signedUrlResponse.text();
-                    // El error 500 ahora será reportado aquí, sin el bloqueo CORS
                     throw new Error(`Error al obtener URL firmada. Estado: ${signedUrlResponse.status}. Detalle: ${errorDetails}`);
                 }
                 
@@ -263,9 +257,8 @@
 
 
                 // PASO 2: REALIZAR LA SUBIDA DEL ARCHIVO DIRECTAMENTE A R2 USANDO LA URL FIRMADA
-                showMessage(`Paso 2/2: Subiendo "${file.name}" directamente a R2...`);
+                showMessage(`Paso 2/3: Subiendo "${file.name}" directamente a R2...`);
                 
-                // Este fetch ya está correcto, apuntando directamente a signedUrl
                 const uploadResponse = await fetch(signedUrl, {
                     method: 'PUT',
                     body: file,
@@ -280,9 +273,14 @@
                 }
 
                 // PASO 3: GUARDAR METADATOS EN FIRESTORE
-                const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
+                showMessage(`Paso 3/3: Guardando metadatos en Firestore...`);
                 
                 if (firebaseConfig !== MOCK_FIREBASE_CONFIG) {
+                    // CORRECCIÓN CLAVE: Usar doc() y collection() para construir la ruta correctamente
+                    // Soluciona el error: "Expected first argument to collection() to be..."
+                    const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                    const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
+                    
                     await addDoc(filesCollectionRef, {
                         name: file.name,
                         type: file.type,
@@ -310,7 +308,6 @@
             }
         }
 
-        // CORRECCIÓN 5: window.handleFiles ahora verifica el estado de autenticación
         window.handleFiles = function (filesList) {
             if (!authReady) {
                 showMessage("La aplicación se está inicializando. Por favor, espera y vuelve a seleccionar el archivo.", 'info');
@@ -343,7 +340,6 @@
                 
                 userId = crypto.randomUUID(); 
                 authStatus.textContent = `Modo MOCK: R2 Activo (${userId.substring(0, 8)}...)`;
-                // CORRECCIÓN 6: Marcar como listo DESPUÉS de definir userId
                 authReady = true; 
                 uploadButton.disabled = false;
 
@@ -358,12 +354,22 @@
                             userId = user.uid;
                             authStatus.textContent = `Usuario: ${userId}`;
                             setupFirestoreListener();
-                            // CORRECCIÓN 6: Marcar como listo DESPUÉS de definir userId
                             authReady = true; 
                             uploadButton.disabled = false; 
                         } else {
-                            // ... (Lógica de inicio de sesión)
-                            // La lógica de sign-in ya está bien, solo necesita que el listener termine
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    await signInAnonymously(auth);
+                                }
+                            } catch (error) {
+                                console.error("Error en la autenticación:", error);
+                                authStatus.textContent = "Error de autenticación.";
+                                showMessage("Error de autenticación. Consulta la consola.", 'error');
+                                uploadButton.disabled = true; 
+                                authReady = true; // Marcar como listo incluso si la autenticación falla, para evitar bloqueo infinito
+                            }
                         }
                     });
                 } catch (e) {
@@ -371,17 +377,17 @@
                     authStatus.textContent = 'Error al iniciar la app.';
                     showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
                     uploadButton.disabled = true;
-                    // CORRECCIÓN 6: Si falla, al menos el estado debe ser manejado
                     authReady = true; 
                 }
             }
         }
-        
-        // ... (El resto del código de setupFirestoreListener y Drag and Drop se mantiene igual)
+
         function setupFirestoreListener() {
             if (!db || !userId || firebaseConfig === MOCK_FIREBASE_CONFIG) return;
 
-            const filesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/klmz_storage_files`);
+            // CORRECCIÓN CLAVE: Usar doc() y collection() para construir la ruta correctamente
+            const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+            const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
             const q = query(filesCollectionRef);
 
             onSnapshot(q, (snapshot) => {
