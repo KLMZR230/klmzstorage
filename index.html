@@ -22,14 +22,41 @@
 
     <div class="container mx-auto p-4 sm:p-8">
 
-        <header class="mb-8">
-            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400">
-                KLMZ Storage
-            </h1>
-            <p id="auth-status" class="text-gray-400 mt-1">Esperando autenticación de usuario...</p>
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400">
+                    KLMZ Storage
+                </h1>
+                <p id="auth-status" class="text-gray-400 mt-1">Esperando autenticación...</p>
+            </div>
+            <button id="logout-button" onclick="handleSignOut()" class="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition duration-150 hidden">
+                Cerrar Sesión
+            </button>
         </header>
+        
+        <div id="auth-controls" class="bg-gray-800 p-6 rounded-xl shadow-lg max-w-md mx-auto mb-8 hidden">
+            <h2 class="text-xl font-semibold text-white mb-4">Iniciar Sesión / Registrarse</h2>
+            
+            <input type="email" id="email-input" placeholder="Correo Electrónico" class="w-full p-3 mb-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500">
+            <input type="password" id="password-input" placeholder="Contraseña" class="w-full p-3 mb-4 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500">
 
-        <div id="upload-section" class="mb-8">
+            <div class="flex space-x-3 mb-4">
+                <button onclick="handleEmailSignIn()" class="flex-1 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                    Iniciar Sesión
+                </button>
+                <button onclick="handleEmailSignUp()" class="flex-1 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition duration-150">
+                    Registrarse
+                </button>
+            </div>
+
+            <div class="text-center my-4 text-gray-400">o continuar con</div>
+
+            <button onclick="handleGoogleSignIn()" class="w-full py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="#FFC107" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/><path fill="#FF3D00" d="M24 44c6.333 0 11.667-2.083 15.55-5.633l-4.317-3.35c-2.375 1.583-5.3 2.516-8.233 2.516-6.425 0-11.883-4.317-13.842-10.15H5.85l-.167 3.433c3.784 7.467 11.4 12.75 18.317 12.75z"/><path fill="#4CAF50" d="M24 10.183c3.55 0 6.675 1.25 9.158 3.517l4.517-4.5c-4.1-3.783-9.583-6.133-13.675-6.133-6.917 0-14.534 5.283-18.317 12.75l4.192 3.267c1.958-5.834 7.416-10.15 13.842-10.15z"/><path fill="#1976D2" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/></svg>
+                Google
+            </button>
+        </div>
+        <div id="upload-section" class="mb-8 hidden"> 
             <div id="drop-area" class="relative p-8 rounded-xl border-4 border-gray-600 border-dashed bg-gray-800/50 transition-all duration-300">
                 <input
                     type="file"
@@ -55,7 +82,7 @@
                         <button
                             onclick="document.getElementById('fileInput').click()"
                             id="upload-button"
-                            class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out disabled:opacity-50"
+                            class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 disabled:opacity-50"
                             disabled
                         >
                             Seleccionar Archivo
@@ -67,7 +94,7 @@
             <div id="message-box" class="mt-4 p-3 rounded-lg text-center text-sm font-medium bg-transparent text-white hidden"></div>
         </div>
 
-        <section>
+        <section id="file-list-section" class="hidden">
             <h2 class="text-2xl font-semibold text-gray-200 mb-4">Mis Archivos</h2>
             <div id="file-list" class="space-y-3">
                 <p id="empty-state" class="text-gray-500 text-center py-10">
@@ -80,7 +107,16 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // SDKs de Autenticación actualizados para email y Google Pop-up
+        import { 
+            getAuth, 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            onAuthStateChanged, 
+            signOut,
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables Globales
@@ -92,12 +128,11 @@
         let authReady = false; 
 
         // ----------------------------------------------------------------------------------
-        // ATENCIÓN: Esta es la configuración de Firebase de tu proyecto 'klmzstorage'.
-        // La hemos incluido directamente para garantizar que la inicialización funcione de inmediato.
+        // CONFIGURACIÓN DE FIREBASE (Tus credenciales reales)
         const firebaseConfig = {
             apiKey: "AIzaSyClcgVHympGTuj7h4hgqxXfVcpqwWaKsyg",
             authDomain: "klmzstorage.firebaseapp.com",
-            projectId: "klmzstorage", // Este es tu appId real
+            projectId: "klmzstorage", 
             storageBucket: "klmzstorage.firebasestorage.app",
             messagingSenderId: "685345835162",
             appId: "1:685345835162:web:be21ed8302df42360f3723"
@@ -106,20 +141,13 @@
 
         // --- CONFIGURACIÓN DE R2 ---
         const R2_BUCKET_NAME = 'klmzstorage';
-        
-        // URL del Worker (¡VERIFICADA!)
         const WORKER_ENDPOINT = 'https://klmz-r2-signer-cli-production.klmzr.workers.dev/get-signed-url'; 
-
-        // URL pública de tu bucket
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
 
-        // Usamos el projectId de Firebase como appId para la ruta de la colección
         const appId = firebaseConfig.projectId;
-
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
 
-        // Elementos del DOM
+        // Elementos del DOM (Actualizados)
         const authStatus = document.getElementById('auth-status');
         const fileList = document.getElementById('file-list');
         const emptyState = document.getElementById('empty-state');
@@ -128,9 +156,19 @@
         const uploadPrompt = document.getElementById('upload-prompt');
         const uploadButton = document.getElementById('upload-button');
         const fileInput = document.getElementById('fileInput');
+        
+        // Nuevos elementos de autenticación
+        const authControls = document.getElementById('auth-controls');
+        const uploadSection = document.getElementById('upload-section');
+        const fileListSection = document.getElementById('file-list-section');
+        const logoutButton = document.getElementById('logout-button');
+        const emailInput = document.getElementById('email-input');
+        const passwordInput = document.getElementById('password-input');
 
-        // --- Utilidades (Se mantienen) ---
+
+        // --- Utilidades ---
         function showMessage(msg, type = 'info') {
+            // ... (función showMessage se mantiene)
             if (!msg) {
                 messageBox.classList.add('hidden');
                 return;
@@ -152,6 +190,7 @@
             }
         }
 
+        // ... (formatFileSize, getFileIcon, renderFileItem se mantienen) ...
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -202,6 +241,7 @@
 
         // --- Lógica de Subida a R2 y Firestore ---
         async function uploadToR2(file) {
+            // ... (función uploadToR2 se mantiene igual) ...
             if (!authReady || !userId) {
                 showMessage("La aplicación no está lista o la autenticación falló. Por favor, espera unos segundos e inténtalo de nuevo.", 'error');
                 console.error("Fallo de subida: authReady:", authReady, "userId:", userId);
@@ -264,11 +304,9 @@
                     throw new Error(`Fallo en la subida a R2. Estado: ${uploadResponse.status}. Respuesta de R2: ${errorBody}.`); 
                 }
 
-                // PASO 3/3: GUARDAR METADATOS EN FIRESTORE (Corrección del error de sintaxis)
+                // PASO 3/3: GUARDAR METADATOS EN FIRESTORE
                 showMessage(`Paso 3/3: Guardando metadatos en Firestore...`);
                 
-                // Usamos doc() y collection() para construir la ruta multi-nivel correctamente.
-                // Esta corrección soluciona el error: "Expected first argument to collection to be..."
                 const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
                 const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
                 
@@ -292,11 +330,12 @@
                 uploadPrompt.classList.remove('hidden');
                 uploadButton.disabled = false;
                 fileInput.disabled = false;
-                fileInput.value = ''; // Limpiar el input para permitir subir el mismo archivo
+                fileInput.value = ''; 
             }
         }
 
         window.handleFiles = function (filesList) {
+            // ... (función handleFiles se mantiene igual) ...
             if (!authReady) {
                 showMessage("La aplicación se está inicializando. Por favor, espera y vuelve a seleccionar el archivo.", 'info');
                 return;
@@ -318,52 +357,114 @@
             uploadToR2(file);
         }
 
-        // --- Inicialización y Autenticación (Se mantiene la lógica REAL) ---
+        // --- Lógica de Autenticación (NUEVA) ---
+
+        function updateUI(user) {
+            if (user) {
+                // Usuario logueado
+                userId = user.uid;
+                authStatus.textContent = `Sesión iniciada: ${user.email || user.displayName || user.uid}`;
+                authControls.classList.add('hidden');
+                uploadSection.classList.remove('hidden');
+                fileListSection.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                uploadButton.disabled = false;
+                setupFirestoreListener();
+            } else {
+                // Usuario deslogueado
+                userId = null;
+                authStatus.textContent = "Por favor, inicia sesión.";
+                authControls.classList.remove('hidden');
+                uploadSection.classList.add('hidden');
+                fileListSection.classList.add('hidden');
+                logoutButton.classList.add('hidden');
+                uploadButton.disabled = true;
+            }
+        }
+
+        async function handleEmailSignUp() {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            if (!email || password.length < 6) {
+                showMessage("Ingresa un email válido y una contraseña de 6+ caracteres.", 'error');
+                return;
+            }
+            showMessage("Registrando usuario...");
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                showMessage("¡Registro exitoso! Sesión iniciada.", 'success');
+            } catch (error) {
+                console.error("Error de registro:", error);
+                showMessage(`Error de registro: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleEmailSignIn() {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            if (!email || !password) {
+                showMessage("Ingresa email y contraseña.", 'error');
+                return;
+            }
+            showMessage("Iniciando sesión...");
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showMessage("Inicio de sesión exitoso.", 'success');
+            } catch (error) {
+                console.error("Error de inicio de sesión:", error);
+                showMessage(`Error de inicio de sesión: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleGoogleSignIn() {
+            showMessage("Abriendo Google Sign-In...");
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+                showMessage("Inicio de sesión con Google exitoso.", 'success');
+            } catch (error) {
+                console.error("Error de Google Sign-In:", error);
+                showMessage(`Error de Google Sign-In: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleSignOut() {
+            showMessage("Cerrando sesión...");
+            try {
+                await signOut(auth);
+                showMessage("Sesión cerrada.", 'info');
+                // updateUI(null) se llamará automáticamente por el listener
+            } catch (error) {
+                console.error("Error al cerrar sesión:", error);
+                showMessage(`Error al cerrar sesión: ${error.message}`, 'error');
+            }
+        }
+        window.handleGoogleSignIn = handleGoogleSignIn;
+        window.handleEmailSignIn = handleEmailSignIn;
+        window.handleEmailSignUp = handleEmailSignUp;
+        window.handleSignOut = handleSignOut;
 
         async function initApp() {
             try {
-                // Inicializa Firebase con tu configuración REAL
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        authStatus.textContent = `Usuario: ${userId}`;
-                        setupFirestoreListener();
-                        authReady = true; 
-                        uploadButton.disabled = false; 
-                    } else {
-                        try {
-                            // Intenta iniciar sesión anónimamente si no hay token personalizado
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (error) {
-                            console.error("Error en la autenticación:", error);
-                            authStatus.textContent = "Error de autenticación.";
-                            showMessage("Error de autenticación. Consulta la consola.", 'error');
-                            uploadButton.disabled = true; 
-                            authReady = true; 
-                        }
-                    }
+                // Listener principal de autenticación
+                onAuthStateChanged(auth, (user) => {
+                    authReady = true;
+                    updateUI(user);
                 });
             } catch (e) {
-                console.error("Error al inicializar la aplicación con Firebase:", e);
+                console.error("Error al inicializar la aplicación:", e);
                 authStatus.textContent = 'Error al iniciar la app.';
                 showMessage("Error al inicializar la aplicación. Consulta la consola.", 'error');
-                uploadButton.disabled = true;
-                authReady = true; 
             }
         }
 
         function setupFirestoreListener() {
             if (!db || !userId) return;
 
-            // Corrección en la referencia: Necesaria para que la lectura funcione
             const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
             const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
             const q = query(filesCollectionRef);
@@ -395,12 +496,11 @@
                 }
             }, (error) => {
                 console.error("Error al escuchar archivos:", error);
-                // Si ves un error aquí, es 100% debido a las Reglas de Seguridad.
                 showMessage("Error al cargar los archivos: " + error.message, 'error');
             });
         }
 
-        // --- Lógica de Drag and Drop (Se mantiene) ---
+        // --- Lógica de Drag and Drop ---
         const dropArea = document.getElementById('drop-area');
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
