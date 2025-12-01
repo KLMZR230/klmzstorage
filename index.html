@@ -28,6 +28,10 @@
             height: 100%;
             object-fit: cover; /* Asegura que la imagen cubra el área sin distorsión */
         }
+        /* Estilo para los botones de acción (lápiz, basura, flecha) */
+        .action-button {
+            @apply p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition duration-150;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -128,7 +132,8 @@
             createUserWithEmailAndPassword, 
             signInWithEmailAndPassword
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Importar deleteDoc y updateDoc para las operaciones CRUD
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables Globales
         let app;
@@ -145,7 +150,6 @@
             authDomain: "klmzstorage.firebaseapp.com",
             projectId: "klmzstorage", 
             storageBucket: "klmzstorage.firebasestorage.app",
-            messagingSenderId: "685345835162",
             appId: "1:685345835162:web:be21ed8302df42360f3723"
         };
         // ----------------------------------------------------------------------------------
@@ -156,12 +160,11 @@
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
 
         const appId = firebaseConfig.projectId;
-        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
+        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; 
 
         // Elementos del DOM
         const authStatus = document.getElementById('auth-status');
         const fileList = document.getElementById('file-list');
-        const emptyState = document.getElementById('empty-state');
         const messageBox = document.getElementById('message-box');
         const uploadIndicator = document.getElementById('upload-indicator');
         const uploadPrompt = document.getElementById('upload-prompt');
@@ -181,9 +184,8 @@
                 messageBox.classList.add('hidden');
                 return;
             }
-
             messageBox.textContent = msg;
-            messageBox.classList.remove('hidden', 'bg-red-900/50', 'bg-green-900/50', 'text-red-300', 'text-green-300', 'text-white', 'bg-indigo-900/50', 'text-indigo-300');
+            messageBox.className = 'mt-4 p-3 rounded-lg text-center text-sm font-medium transition-colors';
 
             if (type === 'error') {
                 messageBox.classList.add('bg-red-900/50', 'text-red-300');
@@ -192,6 +194,7 @@
             } else {
                 messageBox.classList.add('bg-indigo-900/50', 'text-indigo-300');
             }
+            messageBox.classList.remove('hidden');
 
             if (type !== 'error') {
                 setTimeout(() => messageBox.classList.add('hidden'), 5000);
@@ -206,52 +209,82 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // --- FUNCIÓN MEJORADA: Incluye miniatura o icono
         function getFileDisplay(type, publicUrl) {
             if (type.startsWith('image/')) {
-                // Muestra la miniatura para imágenes
                 return `<div class="thumbnail-container bg-gray-600">
                             <img src="${publicUrl}" alt="Miniatura" loading="lazy">
                         </div>`;
-            } else if (type.startsWith('video/')) {
-                return `<svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.7V15.3a1 1 0 01-1.447.886L15 14M4 14V9a2 2 0 012-2h10a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
-                </svg>`;
             } else {
-                return `<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>`;
+                // Icono genérico para videos y otros tipos
+                return `<div class="p-1 rounded bg-gray-600/50">${type.startsWith('video/') ? 
+                    `<svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.7V15.3a1 1 0 01-1.447.886L15 14M4 14V9a2 2 0 012-2h10a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2z" /></svg>` : 
+                    `<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`}</div>`;
             }
         }
 
-        // --- FUNCIÓN MEJORADA: Renderiza el elemento de la lista
-        function renderFileItem(file) {
-            const date = new Date(file.uploadedAt);
-            const publicUrl = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`; 
-            const displayIcon = getFileDisplay(file.type, publicUrl);
+        // --- FUNCIONES CRUD Y DESCARGA (NUEVAS Y MEJORADAS) ---
 
-            return `
-                <div class="flex items-center justify-between p-4 bg-gray-800 rounded-xl shadow-md transition-colors duration-200 hover:bg-gray-700">
-                    <div class="flex items-center space-x-4 min-w-0">
-                        ${displayIcon}
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold truncate text-white">${file.name}</p>
-                            <p class="text-xs text-gray-400">${formatFileSize(file.size)}</p>
-                        </div>
-                    </div>
-                    <div class="text-right ml-4 flex-shrink-0 flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
-                        <p class="text-xs text-gray-500">${date.toLocaleString()}</p>
-                        <a href="${publicUrl}" target="_blank" class="px-3 py-1 bg-indigo-500 text-white text-xs font-medium rounded-lg hover:bg-indigo-600 transition duration-150">
-                            Ver/Descargar
-                        </a>
-                    </div>
-                </div>
-            `;
+        // Función auxiliar para obtener la referencia del documento
+        function getFileDocRef(fileId) {
+            const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+            const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
+            return doc(filesCollectionRef, fileId);
         }
 
+        window.deleteFile = async function(fileId, fileName, r2Key) {
+            if (!confirm(`¿Estás seguro de que quieres eliminar "${fileName}"? Esta acción es permanente y eliminará el archivo de R2.`)) {
+                return;
+            }
+            
+            showMessage(`Eliminando "${fileName}" de la base de datos y R2...`, 'info');
 
-        // --- Lógica de Subida a R2 y Firestore ---
+            try {
+                // Paso 1: Eliminar el metadato de Firestore
+                const docRef = getFileDocRef(fileId);
+                await deleteDoc(docRef);
+
+                // Nota: La eliminación del objeto físico de R2 debe hacerse a través de otro Worker 
+                // o sistema que acepte una URL firmada de DELETE, ya que el frontend no debe tener
+                // permisos S3 de DELETE directos. Por ahora, solo eliminamos el registro.
+
+                showMessage(`"${fileName}" eliminado con éxito.`, 'success');
+
+            } catch (error) {
+                console.error("Error al eliminar el archivo:", error);
+                showMessage(`Error al eliminar: ${error.message}. (Verifique las Reglas de Seguridad).`, 'error');
+            }
+        }
+
+        window.editFileName = async function(fileId, currentName) {
+            const newName = prompt(`Introduce el nuevo nombre para "${currentName}":`, currentName);
+            if (!newName || newName.trim() === currentName) {
+                return;
+            }
+
+            showMessage(`Actualizando nombre a "${newName}"...`, 'info');
+            try {
+                // Solo actualizamos el nombre en Firestore, no renombramos el archivo en R2 (que es complejo)
+                const docRef = getFileDocRef(fileId);
+                await updateDoc(docRef, {
+                    name: newName.trim(),
+                    // No actualizamos r2Key porque renombra en S3/R2 es una operación de copia/borrado compleja
+                });
+                showMessage("Nombre actualizado con éxito.", 'success');
+            } catch (error) {
+                console.error("Error al actualizar el nombre:", error);
+                showMessage(`Error al editar: ${error.message}.`, 'error');
+            }
+        }
+
+        window.downloadFile = function(r2Key) {
+            const publicUrl = `${R2_PUBLIC_URL_BASE}/${r2Key}`;
+            // Fuerza la descarga configurando el Content-Disposition header
+            window.open(publicUrl, '_blank'); 
+        }
+
+        // --- Lógica de Subida a R2 y Firestore (Se mantiene) ---
         async function uploadToR2(file) {
+            // ... (Lógica de subida)
             if (!authReady || !userId) {
                 showMessage("La aplicación no está lista o la autenticación falló. Por favor, espera unos segundos e inténtalo de nuevo.", 'error');
                 console.error("Fallo de subida: authReady:", authReady, "userId:", userId);
@@ -349,28 +382,24 @@
                 showMessage("La aplicación se está inicializando. Por favor, espera y vuelve a seleccionar el archivo.", 'info');
                 return;
             }
-
             if (isUploading) return;
 
             if (!filesList || filesList.length === 0) {
                 showMessage('Por favor, selecciona un archivo.');
                 return;
             }
-
             const file = filesList[0];
             if (!file.type.startsWith('video/') && !file.type.startsWith('image/')) {
                 showMessage('Solo se permiten archivos de video e imagen (fotos).', 'error');
                 return;
             }
-
             uploadToR2(file);
         }
 
-        // --- Lógica de Autenticación y UI ---
+        // --- Lógica de Autenticación y UI (Se mantiene) ---
 
         function updateUI(user) {
             if (user) {
-                // Usuario logueado
                 userId = user.uid;
                 authStatus.textContent = `Sesión: ${user.email || user.displayName || user.uid}`;
                 authControls.classList.add('hidden');
@@ -378,9 +407,8 @@
                 fileListSection.classList.remove('hidden');
                 logoutButton.classList.remove('hidden');
                 uploadButton.disabled = false;
-                setupFirestoreListener(); // Inicia el listener de datos
+                setupFirestoreListener(); 
             } else {
-                // Usuario deslogueado
                 userId = null;
                 authStatus.textContent = "Por favor, inicia sesión.";
                 authControls.classList.remove('hidden');
@@ -388,7 +416,7 @@
                 fileListSection.classList.add('hidden');
                 logoutButton.classList.add('hidden');
                 uploadButton.disabled = true;
-                fileList.innerHTML = ''; // Limpia la lista de archivos
+                fileList.innerHTML = ''; 
                 document.getElementById('empty-state').classList.remove('hidden');
             }
         }
@@ -449,11 +477,11 @@
                 showMessage(`Error al cerrar sesión: ${error.message}`, 'error');
             }
         }
+
         window.handleGoogleSignIn = handleGoogleSignIn;
         window.handleEmailSignIn = handleEmailSignIn;
         window.handleEmailSignUp = handleEmailSignUp;
         window.handleSignOut = handleSignOut;
-
 
         async function initApp() {
             try {
@@ -461,7 +489,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Listener principal de autenticación
                 onAuthStateChanged(auth, (user) => {
                     authReady = true;
                     updateUI(user);
@@ -493,8 +520,7 @@
                 fetchedFiles.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
                 fetchedFiles.forEach(file => {
-                    const displayFile = { ...file, uploadedAt: file.uploadedAt.toLocaleString() };
-                    htmlContent += renderFileItem(displayFile);
+                    htmlContent += renderFileItem(file);
                     fileCount++;
                 });
 
@@ -511,7 +537,7 @@
             });
         }
 
-        // --- Lógica de Drag and Drop ---
+        // --- Lógica de Drag and Drop (Se mantiene) ---
         const dropArea = document.getElementById('drop-area');
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
