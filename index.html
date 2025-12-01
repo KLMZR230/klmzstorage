@@ -2,150 +2,153 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KLMZ Storage</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Fuente y Fondo */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827; /* bg-gray-900 */
+            background-color: #0f172a; /* Fondo más oscuro y elegante */
+            -webkit-tap-highlight-color: transparent; /* Quita el brillo azul al tocar en móviles */
         }
-        #drop-area.drag-active {
-            border-color: #4f46e5; /* indigo-600 */
-            background-color: #1f2937; /* bg-gray-800/70 */
-        }
-        /* Miniaturas */
-        .thumbnail-container {
-            width: 50px;
-            height: 50px;
-            overflow: hidden;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .thumbnail-container:hover {
-            transform: scale(1.05);
-        }
-        .thumbnail-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        /* Botones de acción */
-        .action-button {
-            @apply p-1 rounded-full text-gray-400 hover:text-white transition duration-150 shadow-md;
-        }
-        .action-button.download { @apply hover:bg-indigo-600 hover:text-white; }
-        .action-button.edit { @apply hover:bg-teal-600 hover:text-white; }
-        .action-button.delete { @apply hover:bg-red-600 hover:text-white; }
         
-        /* Fondos de Modal */
+        /* Drag & Drop */
+        #drop-area { transition: all 0.3s ease; }
+        #drop-area.drag-active {
+            border-color: #6366f1; /* indigo-500 */
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+
+        /* Estilo de Tarjetas (Grid Items) */
+        .file-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .file-card:active {
+            transform: scale(0.98); /* Efecto de "pulsar" nativo */
+        }
+
+        /* Botones de acción */
+        .action-btn {
+            @apply p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors duration-200;
+        }
+        
+        /* Modales */
         #image-modal-backdrop, #edit-modal-backdrop, #delete-modal-backdrop {
-            background-color: rgba(0, 0, 0, 0.95);
+            background-color: rgba(0, 0, 0, 0.96); /* Fondo casi negro para inmersión */
+            backdrop-filter: blur(5px); /* Efecto blur estilo iOS */
         }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen text-gray-100 pb-10">
 
-    <div class="container mx-auto p-4 sm:p-8">
+    <div class="container mx-auto px-4 py-6 max-w-6xl">
 
-        <header class="mb-8 flex justify-between items-center">
+        <header class="mb-6 flex justify-between items-center border-b border-gray-800 pb-4">
             <div>
-                <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400">
-                    KLMZ Storage
+                <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
+                    KLMZ
                 </h1>
-                <p id="auth-status" class="text-gray-400 mt-1">Cargando sistema...</p>
+                <p id="auth-status" class="text-xs text-gray-500 font-medium">Cargando...</p>
             </div>
-            <button id="logout-button" onclick="handleSignOut()" class="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition duration-150 hidden">
-                Cerrar Sesión
+            <button id="logout-button" onclick="handleSignOut()" class="px-3 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 text-xs font-bold rounded-full hover:bg-gray-700 transition hidden">
+                Salir
             </button>
         </header>
         
-        <div id="auth-controls" class="bg-gray-800 p-6 rounded-xl shadow-lg max-w-md mx-auto mb-8 hidden">
-            <h2 class="text-xl font-semibold text-white mb-4">Acceso Seguro</h2>
+        <div id="auth-controls" class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700 shadow-xl max-w-sm mx-auto mt-10 hidden">
+            <h2 class="text-lg font-bold text-white mb-4 text-center">Bienvenido</h2>
             
-            <input type="email" id="email-input" placeholder="Correo Electrónico" class="w-full p-3 mb-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500">
-            <input type="password" id="password-input" placeholder="Contraseña" class="w-full p-3 mb-4 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500">
+            <input type="email" id="email-input" placeholder="Correo" class="w-full p-3 mb-3 bg-gray-900/80 text-white rounded-xl border border-gray-700 focus:border-indigo-500 outline-none text-sm">
+            <input type="password" id="password-input" placeholder="Contraseña" class="w-full p-3 mb-4 bg-gray-900/80 text-white rounded-xl border border-gray-700 focus:border-indigo-500 outline-none text-sm">
 
-            <div class="flex space-x-3 mb-4">
-                <button onclick="handleEmailSignIn()" class="flex-1 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+            <div class="flex gap-2 mb-4">
+                <button onclick="handleEmailSignIn()" class="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition">
                     Entrar
                 </button>
-                <button onclick="handleEmailSignUp()" class="flex-1 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition duration-150">
-                    Registrarse
+                <button onclick="handleEmailSignUp()" class="flex-1 py-2.5 bg-gray-700 text-white text-sm font-bold rounded-xl hover:bg-gray-600 transition">
+                    Registro
                 </button>
             </div>
 
-            <div class="text-center my-4 text-gray-400">o continuar con</div>
+            <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-gray-700"></div>
+                <span class="flex-shrink-0 mx-4 text-gray-500 text-xs">O continúa con</span>
+                <div class="flex-grow border-t border-gray-700"></div>
+            </div>
 
-            <button onclick="handleGoogleSignIn()" class="w-full py-2 bg-white text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-100 transition duration-150 flex items-center justify-center">
-                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="#FFC107" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/><path fill="#FF3D00" d="M24 44c6.333 0 11.667-2.083 15.55-5.633l-4.317-3.35c-2.375 1.583-5.3 2.516-8.233 2.516-6.425 0-11.883-4.317-13.842-10.15H5.85l-.167 3.433c3.784 7.467 11.4 12.75 18.317 12.75z"/><path fill="#4CAF50" d="M24 10.183c3.55 0 6.675 1.25 9.158 3.517l4.517-4.5c-4.1-3.783-9.583-6.133-13.675-6.133-6.917 0-14.534 5.283-18.317 12.75l4.192 3.267c1.958-5.834 7.416-10.15 13.842-10.15z"/><path fill="#1976D2" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/></svg>
+            <button onclick="handleGoogleSignIn()" class="w-full py-2.5 bg-white text-gray-900 font-bold rounded-xl shadow hover:bg-gray-100 transition flex items-center justify-center gap-2 mt-2">
+                <svg class="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/><path fill="#FF3D00" d="M24 44c6.333 0 11.667-2.083 15.55-5.633l-4.317-3.35c-2.375 1.583-5.3 2.516-8.233 2.516-6.425 0-11.883-4.317-13.842-10.15H5.85l-.167 3.433c3.784 7.467 11.4 12.75 18.317 12.75z"/><path fill="#4CAF50" d="M24 10.183c3.55 0 6.675 1.25 9.158 3.517l4.517-4.5c-4.1-3.783-9.583-6.133-13.675-6.133-6.917 0-14.534 5.283-18.317 12.75l4.192 3.267c1.958-5.834 7.416-10.15 13.842-10.15z"/><path fill="#1976D2" d="M43.61 20.083c0-.995-.083-1.933-.246-2.833H24v5.333h10.975c-.475 2.117-1.633 3.917-3.275 5.25v.083l4.317 3.35c2.567-2.367 4.05-5.833 4.05-9.683z"/></svg>
                 Google
             </button>
         </div>
 
         <div id="upload-section" class="mb-8 hidden"> 
-            <div id="drop-area" class="relative p-8 rounded-xl border-4 border-gray-600 border-dashed bg-gray-800/50 transition-all duration-300">
+            <div id="drop-area" class="relative p-6 rounded-2xl border-2 border-gray-700 border-dashed bg-gray-800/30 hover:bg-gray-800/50 transition-all text-center">
                 <input type="file" id="fileInput" class="hidden" accept="image/*,video/*" onchange="handleFiles(this.files)" multiple />
-                <div class="flex flex-col items-center justify-center text-center">
-                    <div id="upload-indicator" class="hidden flex items-center space-x-2 text-indigo-400">
-                        <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span class="text-xl font-medium">Procesando archivos...</span>
+                
+                <div id="upload-prompt" class="flex flex-col items-center">
+                    <div class="p-3 bg-gray-800 rounded-full mb-3 shadow-lg">
+                        <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 014 4v2m-5 4H9m0 0l3-3m-3 3l3 3" /></svg>
                     </div>
+                    <button onclick="document.getElementById('fileInput').click()" id="upload-button" class="px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-indigo-500 transition active:scale-95">
+                        Subir Fotos / Videos
+                    </button>
+                </div>
 
-                    <div id="upload-prompt" class="block">
-                        <svg class="w-12 h-12 text-indigo-400 mb-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 014 4v2m-5 4H9m0 0l3-3m-3 3l3 3" />
-                        </svg>
-                        <p class="text-gray-300 mb-4">Arrastra tus archivos aquí</p>
-                        <button onclick="document.getElementById('fileInput').click()" id="upload-button" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 disabled:opacity-50" disabled>
-                            Seleccionar Archivos
-                        </button>
-                    </div>
+                <div id="upload-indicator" class="hidden flex flex-col items-center">
+                    <svg class="animate-spin h-8 w-8 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span class="text-sm font-medium text-gray-300">Subiendo...</span>
                 </div>
             </div>
-            <div id="message-box" class="mt-4 p-3 rounded-lg text-center text-sm font-medium bg-transparent text-white hidden"></div>
+            <div id="message-box" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-2xl text-xs font-bold hidden transition-all"></div>
         </div>
 
         <section id="file-list-section" class="hidden">
-            <h2 class="text-2xl font-semibold text-gray-200 mb-4">Mis Archivos</h2>
-            <div id="file-list" class="space-y-3">
-                <p id="empty-state" class="text-gray-500 text-center py-10">Sube tu primer archivo para verlo aquí.</p>
+            <div class="flex justify-between items-end mb-4">
+                <h2 class="text-lg font-bold text-gray-200">Galería</h2>
+                <span id="file-count" class="text-xs text-gray-500">0 archivos</span>
+            </div>
+            
+            <div id="file-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                <p id="empty-state" class="col-span-full text-gray-500 text-center py-10 text-sm">
+                    No hay archivos aún.
+                </p>
             </div>
         </section>
 
     </div>
     
-    <div id="edit-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideEditModal()">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
-            <h3 class="text-xl font-semibold text-white mb-4">Editar Nombre</h3>
-            <input type="text" id="new-file-name-input" class="w-full p-3 mb-4 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500">
-            <div class="flex justify-end space-x-3">
-                <button onclick="hideEditModal()" class="px-4 py-2 text-gray-400 rounded-lg hover:bg-gray-700">Cancelar</button>
-                <button onclick="saveNewFileName()" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">Guardar</button>
+    <div id="edit-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200" onclick="hideEditModal()">
+        <div class="bg-gray-800 p-5 rounded-2xl shadow-2xl w-11/12 max-w-xs transform scale-95 transition-transform duration-200" id="edit-modal-content" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-bold text-white mb-4">Renombrar</h3>
+            <input type="text" id="new-file-name-input" class="w-full p-3 bg-gray-900 text-white rounded-xl border border-gray-700 focus:border-indigo-500 outline-none mb-4 text-sm">
+            <div class="flex gap-2">
+                <button onclick="hideEditModal()" class="flex-1 py-2 text-gray-400 font-semibold hover:text-white">Cancelar</button>
+                <button onclick="saveNewFileName()" class="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-500">Guardar</button>
             </div>
         </div>
     </div>
 
-    <div id="delete-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideDeleteModal()">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
-            <h3 class="text-xl font-bold text-white mb-4">¿Estás seguro?</h3>
-            <p class="text-gray-300 mb-6">Vas a eliminar <span id="delete-file-name" class="font-semibold text-indigo-400"></span> de la lista. El archivo permanecerá en el almacenamiento R2 hasta que se borre manualmente.</p>
-            <div class="flex justify-end space-x-3">
-                <button onclick="hideDeleteModal()" class="px-4 py-2 text-gray-400 rounded-lg hover:bg-gray-700 font-semibold">Cancelar</button>
-                <button onclick="confirmDeleteFile()" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Borrar</button>
+    <div id="delete-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200" onclick="hideDeleteModal()">
+        <div class="bg-gray-800 p-5 rounded-2xl shadow-2xl w-11/12 max-w-xs text-center transform scale-95 transition-transform duration-200" id="delete-modal-content" onclick="event.stopPropagation()">
+            <div class="mx-auto w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mb-3">
+                <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2">¿Eliminar?</h3>
+            <p class="text-xs text-gray-400 mb-6">Esta acción borrará "<span id="delete-file-name" class="text-white"></span>" de tu lista.</p>
+            <div class="flex gap-2">
+                <button onclick="hideDeleteModal()" class="flex-1 py-2 bg-gray-700 text-white rounded-lg font-semibold">No</button>
+                <button onclick="confirmDeleteFile()" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold shadow">Sí, borrar</button>
             </div>
         </div>
     </div>
 
-    <div id="image-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideImageModal()">
-        <div class="relative max-w-5xl max-h-screen p-4" onclick="event.stopPropagation()">
-            <button onclick="hideImageModal()" class="absolute top-0 right-0 m-4 text-white text-3xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70">&times;</button>
-            <img id="modal-image" src="" alt="Vista previa" class="max-h-[90vh] max-w-full rounded-lg shadow-2xl">
-        </div>
+    <div id="image-modal-backdrop" class="fixed inset-0 z-50 bg-black flex items-center justify-center hidden transition-opacity duration-300" onclick="hideImageModal()">
+        <button onclick="hideImageModal()" class="absolute top-4 right-4 text-white/80 hover:text-white z-50 p-2 bg-gray-800/50 rounded-full">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img id="modal-image" src="" alt="Full" class="max-h-screen max-w-full object-contain transition-transform duration-300 transform scale-95">
     </div>
 
     <script type="module">
@@ -153,7 +156,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- CONFIGURACIÓN ---
+        // --- CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyClcgVHympGTuj7h4hgqxXfVcpqwWaKsyg",
             authDomain: "klmzstorage.firebaseapp.com",
@@ -164,12 +167,12 @@
         const R2_BUCKET_NAME = 'klmzstorage';
         const WORKER_ENDPOINT = 'https://klmz-r2-signer-cli-production.klmzr.workers.dev/get-signed-url'; 
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; 
 
-        // Variables Globales
+        // Vars
         let app, db, auth, userId = null, isUploading = false, authReady = false;
         
-        // Elementos DOM
+        // DOM Elements
         const els = {
             authStatus: document.getElementById('auth-status'),
             fileList: document.getElementById('file-list'),
@@ -188,184 +191,197 @@
             modalBackdrop: document.getElementById('image-modal-backdrop'),
             modalImage: document.getElementById('modal-image'),
             editModalBackdrop: document.getElementById('edit-modal-backdrop'),
+            editModalContent: document.getElementById('edit-modal-content'),
             newFileNameInput: document.getElementById('new-file-name-input'),
-            // Nuevos elementos para el modal de borrado
             deleteModalBackdrop: document.getElementById('delete-modal-backdrop'),
-            deleteFileName: document.getElementById('delete-file-name')
+            deleteModalContent: document.getElementById('delete-modal-content'),
+            deleteFileName: document.getElementById('delete-file-name'),
+            fileCount: document.getElementById('file-count')
         };
 
-        // Estados para modales
         let editState = { fileId: null, currentName: null };
         let deleteState = { fileId: null };
 
-        // --- Funciones UI Globales ---
+        // --- Helpers ---
         window.showMessage = (msg, type = 'info') => {
             if (!msg) { els.messageBox.classList.add('hidden'); return; }
             els.messageBox.textContent = msg;
-            els.messageBox.className = 'mt-4 p-3 rounded-lg text-center text-sm font-medium transition-colors';
-            els.messageBox.classList.add(type === 'error' ? 'bg-red-900/50' : (type === 'success' ? 'bg-green-900/50' : 'bg-indigo-900/50'));
-            els.messageBox.classList.add(type === 'error' ? 'text-red-300' : (type === 'success' ? 'text-green-300' : 'text-indigo-300'));
+            els.messageBox.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-5 py-2.5 rounded-full shadow-2xl text-xs font-bold transition-all duration-300';
+            const colors = type === 'error' ? 'bg-red-500 text-white' : (type === 'success' ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white');
+            els.messageBox.className += ` ${colors}`;
             els.messageBox.classList.remove('hidden');
-            if (type !== 'error') setTimeout(() => els.messageBox.classList.add('hidden'), 5000);
+            if (type !== 'error') setTimeout(() => els.messageBox.classList.add('hidden'), 3000);
         };
 
-        // --- Funciones de Descarga y Modales (Globales) ---
-        window.downloadFile = async (r2Key, fileName) => {
-            const cacheBuster = "?t=" + new Date().getTime();
-            const publicUrl = `${R2_PUBLIC_URL_BASE}/${r2Key}${cacheBuster}`;
-            window.showMessage(`Iniciando descarga de ${fileName}...`, 'info');
-            try {
-                const response = await fetch(publicUrl);
-                if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-                window.showMessage(`Descarga completada.`, 'success');
-            } catch (error) {
-                console.error("Error descarga:", error);
-                window.showMessage(`Error en descarga directa. Abriendo en pestaña nueva...`, 'error');
-                setTimeout(() => window.open(`${R2_PUBLIC_URL_BASE}/${r2Key}`, '_blank'), 1500);
+        const formatSize = (b) => b === 0 ? '0 B' : `${parseFloat((b / Math.pow(1024, Math.floor(Math.log(b) / Math.log(1024)))).toFixed(1))} ${['B', 'KB', 'MB', 'GB'][Math.floor(Math.log(b) / Math.log(1024))]}`;
+
+        // --- Renderizado de Tarjeta (Grid Item) ---
+        function renderFileItem(file) {
+            const date = file.uploadedAt?.toDate ? file.uploadedAt.toDate().toLocaleDateString() : '';
+            const url = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`;
+            const isImage = file.type.startsWith('image/');
+            
+            // Imagen: usa la foto real. Video/Otro: usa icono SVG
+            const previewContent = isImage 
+                ? `<img src="${url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy">` 
+                : `<div class="flex items-center justify-center h-full text-gray-500"><svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>`;
+
+            // Acción Click en la imagen: Abrir modal
+            const clickAction = isImage ? `onclick="showImageModal('${url}')"` : '';
+
+            return `
+                <div class="group relative bg-gray-800 rounded-2xl overflow-hidden border border-gray-700/50 shadow-lg hover:shadow-indigo-500/10 transition-all duration-300">
+                    
+                    <div class="aspect-square w-full bg-gray-900 cursor-pointer overflow-hidden relative" ${clickAction}>
+                        ${previewContent}
+                        ${!isImage ? `<span class="absolute bottom-2 right-2 text-[10px] bg-gray-800/80 px-1.5 rounded text-gray-300 uppercase font-bold">${file.name.split('.').pop()}</span>` : ''}
+                    </div>
+
+                    <div class="p-3">
+                        <p class="text-sm font-bold text-gray-200 truncate mb-0.5">${file.name}</p>
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-[10px] text-gray-500">${formatSize(file.size)}</span>
+                            <span class="text-[10px] text-gray-600">${date}</span>
+                        </div>
+
+                        <div class="flex justify-between items-center border-t border-gray-700/50 pt-2">
+                            <button onclick="downloadFile('${file.r2Key}', '${file.name}')" class="action-btn text-indigo-400 hover:bg-indigo-500/20" title="Descargar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </button>
+                            <button onclick="showEditModal('${file.id}', '${file.name}')" class="action-btn text-teal-400 hover:bg-teal-500/20" title="Renombrar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button onclick="showDeleteModal('${file.id}', '${file.name}')" class="action-btn text-red-400 hover:bg-red-500/20" title="Borrar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Modales (Animación y Lógica) ---
+        const toggleModal = (backdrop, content, show) => {
+            if (show) {
+                backdrop.classList.remove('hidden');
+                setTimeout(() => {
+                    backdrop.classList.remove('opacity-0');
+                    if(content) content.classList.remove('scale-95');
+                }, 10);
+            } else {
+                backdrop.classList.add('opacity-0');
+                if(content) content.classList.add('scale-95');
+                setTimeout(() => backdrop.classList.add('hidden'), 200);
             }
         };
 
-        // Modal de Imagen
-        window.showImageModal = (url) => { els.modalImage.src = url; els.modalBackdrop.classList.remove('hidden'); };
-        window.hideImageModal = () => { els.modalBackdrop.classList.add('hidden'); els.modalImage.src = ''; };
-        
-        // Modal de Edición
+        window.showImageModal = (url) => { els.modalImage.src = url; toggleModal(els.modalBackdrop, els.modalImage, true); };
+        window.hideImageModal = () => { toggleModal(els.modalBackdrop, els.modalImage, false); setTimeout(() => els.modalImage.src = '', 200); };
+
         window.showEditModal = (id, name) => {
             editState = { fileId: id, currentName: name };
             els.newFileNameInput.value = name;
-            els.editModalBackdrop.classList.remove('hidden');
+            toggleModal(els.editModalBackdrop, els.editModalContent, true);
+            setTimeout(() => els.newFileNameInput.focus(), 100);
         };
-        window.hideEditModal = () => { els.editModalBackdrop.classList.add('hidden'); };
+        window.hideEditModal = () => toggleModal(els.editModalBackdrop, els.editModalContent, false);
 
-        window.saveNewFileName = async () => {
-            const newName = els.newFileNameInput.value.trim();
-            if (!newName || newName === editState.currentName) { window.hideEditModal(); return; }
-            window.hideEditModal();
-            window.showMessage("Actualizando...", 'info');
-            try {
-                const docRef = doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId, 'klmz_storage_files', editState.fileId);
-                await updateDoc(docRef, { name: newName });
-                window.showMessage("Nombre actualizado.", 'success');
-            } catch (e) { window.showMessage(`Error al editar: ${e.message}`, 'error'); }
-        };
-
-        // NUEVO: Funciones para el Modal de Borrado
         window.showDeleteModal = (id, name) => {
             deleteState = { fileId: id };
             els.deleteFileName.textContent = name;
-            els.deleteModalBackdrop.classList.remove('hidden');
-        }
-        window.hideDeleteModal = () => { els.deleteModalBackdrop.classList.add('hidden'); }
+            toggleModal(els.deleteModalBackdrop, els.deleteModalContent, true);
+        };
+        window.hideDeleteModal = () => toggleModal(els.deleteModalBackdrop, els.deleteModalContent, false);
+
+        // --- Acciones ---
+        window.saveNewFileName = async () => {
+            const newName = els.newFileNameInput.value.trim();
+            if (!newName || newName === editState.currentName) return window.hideEditModal();
+            window.hideEditModal();
+            window.showMessage("Actualizando...", 'info');
+            try {
+                await updateDoc(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId, 'klmz_storage_files', editState.fileId), { name: newName });
+                window.showMessage("Renombrado.", 'success');
+            } catch (e) { window.showMessage(e.message, 'error'); }
+        };
 
         window.confirmDeleteFile = async () => {
             window.hideDeleteModal();
-            window.showMessage("Eliminando de la lista...", 'info');
+            window.showMessage("Eliminando...", 'info');
             try {
-                const docRef = doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId, 'klmz_storage_files', deleteState.fileId);
-                await deleteDoc(docRef);
-                window.showMessage("Archivo eliminado de la lista.", 'success');
-            } catch (e) { window.showMessage(`Error al borrar: ${e.message}`, 'error'); }
+                await deleteDoc(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId, 'klmz_storage_files', deleteState.fileId));
+                window.showMessage("Eliminado.", 'success');
+            } catch (e) { window.showMessage(e.message, 'error'); }
         };
 
-        // Función principal de borrado (solo abre el modal)
-        window.deleteFile = (id, name) => {
-            window.showDeleteModal(id, name);
+        window.downloadFile = async (r2Key, fileName) => {
+            const cacheBuster = "?t=" + new Date().getTime();
+            window.showMessage("Descargando...", 'info');
+            try {
+                const res = await fetch(`${R2_PUBLIC_URL_BASE}/${r2Key}${cacheBuster}`);
+                if (!res.ok) throw new Error();
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = fileName; document.body.appendChild(a); a.click();
+                setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+                window.showMessage("Listo.", 'success');
+            } catch (e) {
+                window.open(`${R2_PUBLIC_URL_BASE}/${r2Key}`, '_blank');
+            }
         };
 
-        // --- Renderizado ---
-        function renderFileItem(file) {
-            const date = file.uploadedAt?.toDate ? file.uploadedAt.toDate().toLocaleString() : new Date().toLocaleString();
-            const url = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`;
-            const icon = file.type.startsWith('image/') 
-                ? `<div class="thumbnail-container bg-gray-700" onclick="showImageModal('${url}')"><img src="${url}" loading="lazy"></div>`
-                : `<div class="p-2 bg-gray-700 rounded"><svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>`;
-
-            return `
-                <div class="flex items-center justify-between p-4 bg-gray-800 rounded-xl shadow-md hover:bg-gray-750 transition-colors">
-                    <div class="flex items-center space-x-4 min-w-0">
-                        ${icon}
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold truncate text-white">${file.name}</p>
-                            <p class="text-xs text-gray-400">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-2 ml-4">
-                        <p class="text-xs text-gray-500 hidden sm:block mr-2">${date}</p>
-                        <button onclick="downloadFile('${file.r2Key}', '${file.name}')" class="action-button download" title="Descargar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
-                        <button onclick="showEditModal('${file.id}', '${file.name}')" class="action-button edit" title="Editar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-9-4l9-9m-4 4l-4 4"></path></svg></button>
-                        <button onclick="deleteFile('${file.id}', '${file.name}')" class="action-button delete" title="Borrar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                    </div>
-                </div>`;
-        }
-
-        // --- Core: Carga y Subida ---
-        async function processFile(file) {
-            if (file.size > MAX_FILE_SIZE) throw new Error(`${file.name} es muy grande (>100MB).`);
-            const key = `${userId}/${crypto.randomUUID()}.${file.name.split('.').pop()}`;
-            const res = await fetch(`${WORKER_ENDPOINT}?key=${key}&contentType=${file.type}`);
-            if (!res.ok) throw new Error("Error obteniendo firma.");
-            const { signedUrl } = await res.json();
-            const upload = await fetch(signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-            if (!upload.ok) throw new Error("Error subiendo a R2.");
-            await addDoc(collection(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), 'klmz_storage_files'), {
-                name: file.name, type: file.type, size: file.size, r2Key: key, r2Bucket: R2_BUCKET_NAME, uploaderId: userId, uploadedAt: serverTimestamp()
-            });
-            return true;
-        }
-
+        // --- Upload ---
         async function processQueue(files) {
             if (isUploading) return;
             isUploading = true;
             els.uploadPrompt.classList.add('hidden');
             els.uploadIndicator.classList.remove('hidden');
             els.uploadButton.disabled = true;
+
             let count = 0;
             for (const file of files) {
+                if (file.size > MAX_FILE_SIZE) continue;
                 window.showMessage(`Subiendo ${file.name}...`);
-                try { await processFile(file); count++; } 
-                catch (e) { console.error(e); window.showMessage(`Fallo en ${file.name}`, 'error'); }
+                try {
+                    const key = `${userId}/${crypto.randomUUID()}.${file.name.split('.').pop()}`;
+                    const signRes = await fetch(`${WORKER_ENDPOINT}?key=${key}&contentType=${file.type}`);
+                    const { signedUrl } = await signRes.json();
+                    await fetch(signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+                    await addDoc(collection(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), 'klmz_storage_files'), {
+                        name: file.name, type: file.type, size: file.size, r2Key: key, r2Bucket: R2_BUCKET_NAME, uploaderId: userId, uploadedAt: serverTimestamp()
+                    });
+                    count++;
+                } catch (e) { console.error(e); }
             }
-            window.showMessage(`Completado: ${count}/${files.length} subidos.`, count === files.length ? 'success' : 'info');
+            window.showMessage(count > 0 ? `¡${count} archivos subidos!` : "Error en subida", count > 0 ? 'success' : 'error');
             isUploading = false;
             els.uploadIndicator.classList.add('hidden');
             els.uploadPrompt.classList.remove('hidden');
             els.uploadButton.disabled = false;
             els.fileInput.value = '';
         }
+        window.handleFiles = (l) => { if(authReady && userId && l?.length) processQueue(Array.from(l)); };
 
-        window.handleFiles = (list) => {
-            if (!authReady || !userId) return window.showMessage("Espera a que cargue la sesión.", 'error');
-            if (list?.length) processQueue(Array.from(list));
-        };
-
-        // --- Auth & Init ---
+        // --- Auth UI ---
         function updateUI(user) {
             if (user) {
                 userId = user.uid;
-                els.authStatus.textContent = `Hola, ${user.email}`;
+                els.authStatus.textContent = "";
                 els.authControls.classList.add('hidden');
                 els.uploadSection.classList.remove('hidden');
                 els.fileListSection.classList.remove('hidden');
                 els.logoutButton.classList.remove('hidden');
-                els.uploadButton.disabled = false;
-                const q = query(collection(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), 'klmz_storage_files'));
-                onSnapshot(q, (snap) => {
-                    const files = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.uploadedAt - a.uploadedAt);
+                
+                onSnapshot(query(collection(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), 'klmz_storage_files')), (s) => {
+                    const files = s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.uploadedAt - a.uploadedAt);
                     els.fileList.innerHTML = files.map(renderFileItem).join('');
+                    els.fileCount.textContent = `${files.length} archivo${files.length!==1?'s':''}`;
                     els.emptyState.classList.toggle('hidden', files.length > 0);
                 });
             } else {
                 userId = null;
-                els.authStatus.textContent = "Acceso Requerido";
+                els.authStatus.textContent = "";
                 els.authControls.classList.remove('hidden');
                 els.uploadSection.classList.add('hidden');
                 els.fileListSection.classList.add('hidden');
@@ -373,32 +389,26 @@
             }
         }
 
-        window.handleEmailSignIn = async () => {
-            try { await signInWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); }
-            catch(e) { window.showMessage("Error: " + e.message, 'error'); }
-        };
-        window.handleEmailSignUp = async () => {
-            try { await createUserWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); }
-            catch(e) { window.showMessage("Error: " + e.message, 'error'); }
-        };
-        window.handleGoogleSignIn = async () => {
-            try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-            catch(e) { window.showMessage("Error Google: " + e.message, 'error'); }
-        };
+        // --- Init ---
+        window.handleGoogleSignIn = async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { window.showMessage(e.message, 'error'); } };
+        window.handleEmailSignIn = async () => { try { await signInWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); } catch(e) { window.showMessage(e.message, 'error'); } };
+        window.handleEmailSignUp = async () => { try { await createUserWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); } catch(e) { window.showMessage(e.message, 'error'); } };
         window.handleSignOut = () => signOut(auth);
 
         window.onload = () => {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                onAuthStateChanged(auth, (u) => { authReady = true; updateUI(u); });
-                const dropArea = document.getElementById('drop-area');
-                ['dragenter', 'dragover'].forEach(e => dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.add('drag-active'); }));
-                ['dragleave', 'drop'].forEach(e => dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.remove('drag-active'); }));
-                dropArea.addEventListener('drop', (e) => window.handleFiles(e.dataTransfer.files));
-            } catch (e) { console.error(e); }
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            onAuthStateChanged(auth, (u) => { authReady = true; updateUI(u); setupDragAndDrop(); });
         };
+
+        function setupDragAndDrop() {
+            const dropArea = document.getElementById('drop-area');
+            if(!dropArea) return;
+            ['dragenter', 'dragover'].forEach(e => dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.add('drag-active'); }));
+            ['dragleave', 'drop'].forEach(e => dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.remove('drag-active'); }));
+            dropArea.addEventListener('drop', (e) => window.handleFiles(e.dataTransfer.files));
+        }
     </script>
 </body>
 </html>
