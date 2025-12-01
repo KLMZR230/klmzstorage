@@ -6,17 +6,19 @@
     <title>KLMZ Storage</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Configuración de fuente Inter y fondo oscuro */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827;
+            background-color: #111827; /* bg-gray-900 */
         }
+        /* Estilo para el área de drop para que cubra la zona */
         #drop-area.drag-active {
-            border-color: #4f46e5;
-            background-color: #1f2937;
+            border-color: #4f46e5; /* indigo-600 */
+            background-color: #1f2937; /* bg-gray-800/70 */
         }
         /* Estilo para que la miniatura cubra el contenedor */
         .thumbnail-container {
-            width: 50px;
+            width: 50px; /* Tamaño fijo para la miniatura */
             height: 50px;
             overflow: hidden;
             border-radius: 6px;
@@ -29,12 +31,12 @@
         .thumbnail-container img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: cover; /* Asegura que la imagen cubra el área sin distorsión */
         }
         /* Estilos mejorados para los botones de acción */
         .action-button {
             @apply p-1 rounded-full text-gray-400 hover:text-white transition duration-150;
-            @apply shadow-md; /* Añadimos sombra para profesionalismo */
+            @apply shadow-md;
         }
         .action-button.download {
             @apply hover:bg-indigo-600 hover:text-white;
@@ -46,7 +48,7 @@
             @apply hover:bg-red-600 hover:text-white;
         }
         /* Modal Backdrop */
-        #image-modal-backdrop {
+        #image-modal-backdrop, #edit-modal-backdrop {
             background-color: rgba(0, 0, 0, 0.95);
         }
     </style>
@@ -139,6 +141,21 @@
 
     </div>
     
+    <div id="edit-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideEditModal()">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-semibold text-white mb-4">Editar Nombre del Archivo</h3>
+            <input type="text" id="new-file-name-input" class="w-full p-3 mb-4 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-500" placeholder="Nuevo nombre">
+            <div class="flex justify-end space-x-3">
+                <button onclick="hideEditModal()" class="px-4 py-2 text-gray-400 rounded-lg hover:bg-gray-700">
+                    Cancelar
+                </button>
+                <button onclick="saveNewFileName()" id="save-edit-button" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="image-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideImageModal()">
         <div class="relative max-w-5xl max-h-screen p-4" onclick="event.stopPropagation()">
             <button onclick="hideImageModal()" class="absolute top-0 right-0 m-4 text-white text-3xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70">
@@ -187,7 +204,7 @@
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
 
         const appId = firebaseConfig.projectId;
-        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
+        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; 
 
         // Elementos del DOM (cacheado para evitar el error 'null')
         const authStatus = document.getElementById('auth-status');
@@ -206,9 +223,15 @@
         const emptyState = document.getElementById('empty-state');
         const modalBackdrop = document.getElementById('image-modal-backdrop');
         const modalImage = document.getElementById('modal-image');
+        
+        // Variables para el modal de edición
+        const editModalBackdrop = document.getElementById('edit-modal-backdrop');
+        const newFileNameInput = document.getElementById('new-file-name-input');
+        let currentFileIdToEdit = null;
+        let currentFileNameToEdit = null;
 
 
-        // --- Utilidades y Funciones de Visualización ---
+        // --- Utilidades ---
         function showMessage(msg, type = 'info') {
             if (!msg) {
                 messageBox.classList.add('hidden');
@@ -241,7 +264,6 @@
 
         function getFileDisplay(type, publicUrl) {
             if (type.startsWith('image/')) {
-                // Modificado para llamar a showImageModal en el onclick
                 return `<div class="thumbnail-container bg-gray-600" onclick="showImageModal('${publicUrl}')">
                             <img src="${publicUrl}" alt="Miniatura" loading="lazy">
                         </div>`;
@@ -270,7 +292,7 @@
                         
                         <p class="text-xs text-gray-500 hidden sm:block">${date.toLocaleString()}</p>
 
-                        <button onclick="downloadFile('${file.r2Key}')" class="action-button download">
+                        <button onclick="downloadFile('${file.r2Key}', '${file.name}')" class="action-button download">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         </button>
                         
@@ -286,7 +308,7 @@
             `;
         }
 
-        // --- FUNCIONES MODAL (NUEVAS) ---
+        // --- Funciones Modal ---
         window.showImageModal = function(imageUrl) {
             modalImage.src = imageUrl;
             modalBackdrop.classList.remove('hidden');
@@ -297,7 +319,46 @@
             modalImage.src = ''; 
         }
 
-        // --- Funciones CRUD y Subida (Se mantienen) ---
+        window.showEditModal = function(fileId, currentName) {
+            currentFileIdToEdit = fileId;
+            currentFileNameToEdit = currentName;
+            newFileNameInput.value = currentName;
+            editModalBackdrop.classList.remove('hidden');
+        }
+
+        window.hideEditModal = function() {
+            editModalBackdrop.classList.add('hidden');
+            currentFileIdToEdit = null;
+            currentFileNameToEdit = null;
+        }
+
+        window.saveNewFileName = async function() {
+            const newName = newFileNameInput.value.trim();
+            const fileId = currentFileIdToEdit;
+            
+            if (!newName || newName === currentFileNameToEdit) {
+                hideEditModal();
+                return;
+            }
+
+            showMessage(`Actualizando nombre a "${newName}"...`, 'info');
+            hideEditModal(); 
+
+            try {
+                const docRef = getFileDocRef(fileId);
+                await updateDoc(docRef, {
+                    name: newName,
+                });
+                showMessage("Nombre actualizado con éxito.", 'success');
+            } catch (error) {
+                console.error("Error al actualizar el nombre:", error);
+                showMessage(`Error al editar: ${error.message}.`, 'error');
+            }
+        }
+
+
+        // --- Funciones CRUD y Descarga ---
+
         function getFileDocRef(fileId) {
             const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
             const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
@@ -323,31 +384,39 @@
             }
         }
 
-        window.editFileName = async function(fileId, currentName) {
-            const newName = prompt(`Introduce el nuevo nombre para "${currentName}":`, currentName);
-            if (!newName || newName.trim() === currentName) {
-                return;
-            }
-
-            showMessage(`Actualizando nombre a "${newName}"...`, 'info');
-            try {
-                const docRef = getFileDocRef(fileId);
-                await updateDoc(docRef, {
-                    name: newName.trim(),
-                });
-                showMessage("Nombre actualizado con éxito.", 'success');
-            } catch (error) {
-                console.error("Error al actualizar el nombre:", error);
-                showMessage(`Error al editar: ${error.message}.`, 'error');
-            }
+        window.editFileName = function(fileId, currentName) {
+            showEditModal(fileId, currentName);
         }
 
-        window.downloadFile = function(r2Key) {
+        window.downloadFile = async function(r2Key, fileName) {
             const publicUrl = `${R2_PUBLIC_URL_BASE}/${r2Key}`;
-            window.open(publicUrl, '_blank'); 
+            
+            showMessage(`Iniciando descarga de ${fileName}...`, 'info');
+
+            try {
+                const response = await fetch(publicUrl);
+                if (!response.ok) throw new Error(`Fallo de descarga: ${response.statusText}`);
+
+                const blob = await response.blob(); 
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                showMessage(`Descarga de ${fileName} completada.`, 'success');
+
+            } catch (error) {
+                console.error("Error de descarga:", error);
+                showMessage(`Fallo al descargar: ${error.message}`, 'error');
+            }
         }
 
-        // --- Lógica de Subida Múltiple y Auth (Se mantienen) ---
+        // --- Lógica de Subida Múltiple y Auth (Se mantiene) ---
 
         async function processSingleFile(file) {
             if (!userId) {
@@ -562,14 +631,16 @@
             }
         }
 
-        // Asignación de funciones al scope de la ventana (necesario para onclick en HTML)
+        // Asignación de funciones al scope de la ventana
         window.handleGoogleSignIn = handleGoogleSignIn;
         window.handleEmailSignIn = handleEmailSignIn;
         window.handleEmailSignUp = handleEmailSignUp;
         window.handleSignOut = handleSignOut;
         window.showImageModal = showImageModal;
         window.hideImageModal = hideImageModal;
-
+        window.showEditModal = showEditModal;
+        window.hideEditModal = hideEditModal;
+        window.saveNewFileName = saveNewFileName;
 
         async function initApp() {
             try {
@@ -580,7 +651,6 @@
                 onAuthStateChanged(auth, (user) => {
                     authReady = true;
                     updateUI(user);
-                    // LLAMADA CORREGIDA: Inicializa Drag and Drop solo después de que el DOM esté cargado
                     setupDragAndDrop(); 
                 });
             } catch (e) {
@@ -610,8 +680,7 @@
                 fetchedFiles.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
                 fetchedFiles.forEach(file => {
-                    // CORRECCIÓN: renderFileItem es accesible aquí
-                    htmlContent += renderFileItem(file); 
+                    htmlContent += renderFileItem(file);
                     fileCount++;
                 });
 
