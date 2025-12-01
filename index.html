@@ -6,31 +6,48 @@
     <title>KLMZ Storage</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Configuración de fuente Inter y fondo oscuro */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827; /* bg-gray-900 */
+            background-color: #111827;
         }
-        /* Estilo para el área de drop para que cubra la zona */
         #drop-area.drag-active {
-            border-color: #4f46e5; /* indigo-600 */
-            background-color: #1f2937; /* bg-gray-800/70 */
+            border-color: #4f46e5;
+            background-color: #1f2937;
         }
         /* Estilo para que la miniatura cubra el contenedor */
         .thumbnail-container {
-            width: 50px; /* Tamaño fijo para la miniatura */
+            width: 50px;
             height: 50px;
             overflow: hidden;
             border-radius: 6px;
+            cursor: pointer; /* Indicador de clic */
+            transition: transform 0.2s;
+        }
+        .thumbnail-container:hover {
+            transform: scale(1.05); /* Efecto hover en la miniatura */
         }
         .thumbnail-container img {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Asegura que la imagen cubra el área sin distorsión */
+            object-fit: cover;
         }
-        /* Estilo para los botones de acción (lápiz, basura, flecha) */
+        /* Estilos mejorados para los botones de acción */
         .action-button {
-            @apply p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition duration-150;
+            @apply p-1 rounded-full text-gray-400 hover:text-white transition duration-150;
+            @apply shadow-md; /* Añadimos sombra para profesionalismo */
+        }
+        .action-button.download {
+            @apply hover:bg-indigo-600 hover:text-white;
+        }
+        .action-button.edit {
+            @apply hover:bg-teal-600 hover:text-white;
+        }
+        .action-button.delete {
+            @apply hover:bg-red-600 hover:text-white;
+        }
+        /* Modal Backdrop */
+        #image-modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.95);
         }
     </style>
 </head>
@@ -121,6 +138,16 @@
         </section>
 
     </div>
+    
+    <div id="image-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center hidden" onclick="hideImageModal()">
+        <div class="relative max-w-5xl max-h-screen p-4" onclick="event.stopPropagation()">
+            <button onclick="hideImageModal()" class="absolute top-0 right-0 m-4 text-white text-3xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70">
+                &times;
+            </button>
+            <img id="modal-image" src="" alt="Imagen ampliada" class="max-h-[90vh] max-w-full rounded-lg shadow-2xl">
+        </div>
+    </div>
+
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -161,8 +188,6 @@
 
         const appId = firebaseConfig.projectId;
         const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // Límite de 100MB
-        let filesQueue = []; // Cola de archivos para procesamiento secuencial
-
 
         // Elementos del DOM (cacheado para evitar el error 'null')
         const authStatus = document.getElementById('auth-status');
@@ -179,9 +204,11 @@
         const emailInput = document.getElementById('email-input');
         const passwordInput = document.getElementById('password-input');
         const emptyState = document.getElementById('empty-state');
+        const modalBackdrop = document.getElementById('image-modal-backdrop');
+        const modalImage = document.getElementById('modal-image');
 
 
-        // --- Utilidades ---
+        // --- Utilidades y Funciones de Visualización ---
         function showMessage(msg, type = 'info') {
             if (!msg) {
                 messageBox.classList.add('hidden');
@@ -214,7 +241,8 @@
 
         function getFileDisplay(type, publicUrl) {
             if (type.startsWith('image/')) {
-                return `<div class="thumbnail-container bg-gray-600">
+                // Modificado para llamar a showImageModal en el onclick
+                return `<div class="thumbnail-container bg-gray-600" onclick="showImageModal('${publicUrl}')">
                             <img src="${publicUrl}" alt="Miniatura" loading="lazy">
                         </div>`;
             } else {
@@ -224,8 +252,6 @@
             }
         }
 
-        // CORRECCIÓN: Esta función ahora está definida en el ámbito global del módulo
-        // lo que la hace accesible para setupFirestoreListener.
         function renderFileItem(file) {
             const date = new Date(file.uploadedAt);
             const publicUrl = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`; 
@@ -244,15 +270,15 @@
                         
                         <p class="text-xs text-gray-500 hidden sm:block">${date.toLocaleString()}</p>
 
-                        <button onclick="downloadFile('${file.r2Key}')" class="action-button">
+                        <button onclick="downloadFile('${file.r2Key}')" class="action-button download">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         </button>
                         
-                        <button onclick="editFileName('${file.id}', '${file.name}')" class="action-button">
+                        <button onclick="editFileName('${file.id}', '${file.name}')" class="action-button edit">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-9-4l9-9m-4 4l-4 4"></path></svg>
                         </button>
                         
-                        <button onclick="deleteFile('${file.id}', '${file.name}', '${file.r2Key}')" class="action-button text-red-400 hover:text-red-300">
+                        <button onclick="deleteFile('${file.id}', '${file.name}', '${file.r2Key}')" class="action-button delete">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                     </div>
@@ -260,8 +286,18 @@
             `;
         }
 
-        // --- Funciones CRUD y Descarga (Se mantienen) ---
+        // --- FUNCIONES MODAL (NUEVAS) ---
+        window.showImageModal = function(imageUrl) {
+            modalImage.src = imageUrl;
+            modalBackdrop.classList.remove('hidden');
+        }
 
+        window.hideImageModal = function() {
+            modalBackdrop.classList.add('hidden');
+            modalImage.src = ''; 
+        }
+
+        // --- Funciones CRUD y Subida (Se mantienen) ---
         function getFileDocRef(fileId) {
             const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
             const filesCollectionRef = collection(userDocRef, 'klmz_storage_files');
@@ -269,7 +305,7 @@
         }
 
         window.deleteFile = async function(fileId, fileName, r2Key) {
-            if (!confirm(`¿Estás seguro de que quieres eliminar "${fileName}"? Esta acción es permanente y eliminará el registro de la lista.`)) {
+            if (!confirm(`¿Estás seguro de que quieres eliminar "${fileName}"? NOTA: El archivo permanecerá en R2 hasta que se borre manualmente, pero se eliminará de esta lista.`)) {
                 return;
             }
             
@@ -311,7 +347,7 @@
             window.open(publicUrl, '_blank'); 
         }
 
-        // --- Lógica de Subida Múltiple (Se mantiene) ---
+        // --- Lógica de Subida Múltiple y Auth (Se mantienen) ---
 
         async function processSingleFile(file) {
             if (!userId) {
@@ -465,7 +501,7 @@
                 logoutButton.classList.add('hidden');
                 uploadButton.disabled = true;
                 fileList.innerHTML = ''; 
-                document.getElementById('empty-state').classList.remove('hidden');
+                emptyState.classList.remove('hidden');
             }
         }
 
@@ -526,10 +562,14 @@
             }
         }
 
+        // Asignación de funciones al scope de la ventana (necesario para onclick en HTML)
         window.handleGoogleSignIn = handleGoogleSignIn;
         window.handleEmailSignIn = handleEmailSignIn;
         window.handleEmailSignUp = handleEmailSignUp;
         window.handleSignOut = handleSignOut;
+        window.showImageModal = showImageModal;
+        window.hideImageModal = hideImageModal;
+
 
         async function initApp() {
             try {
@@ -540,7 +580,7 @@
                 onAuthStateChanged(auth, (user) => {
                     authReady = true;
                     updateUI(user);
-                    // Llama a la configuración de Drag and Drop solo después de que el DOM esté cargado
+                    // LLAMADA CORREGIDA: Inicializa Drag and Drop solo después de que el DOM esté cargado
                     setupDragAndDrop(); 
                 });
             } catch (e) {
@@ -570,16 +610,17 @@
                 fetchedFiles.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
                 fetchedFiles.forEach(file => {
-                    htmlContent += renderFileItem(file);
+                    // CORRECCIÓN: renderFileItem es accesible aquí
+                    htmlContent += renderFileItem(file); 
                     fileCount++;
                 });
 
                 fileList.innerHTML = htmlContent;
 
                 if (fileCount === 0) {
-                    document.getElementById('empty-state').classList.remove('hidden');
+                    emptyState.classList.remove('hidden');
                 } else {
-                    document.getElementById('empty-state').classList.add('hidden');
+                    emptyState.classList.add('hidden');
                 }
             }, (error) => {
                 console.error("Error al escuchar archivos:", error);
