@@ -3,29 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KLMZ Storage</title>
+    <title>KLMZ STORAGE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Fuente y Fondo */
+        /* Estilos Base */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Fondo más oscuro y elegante */
-            -webkit-tap-highlight-color: transparent; /* Quita el brillo azul al tocar en móviles */
+            background-color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* Drag & Drop */
         #drop-area { transition: all 0.3s ease; }
         #drop-area.drag-active {
-            border-color: #6366f1; /* indigo-500 */
+            border-color: #6366f1;
             background-color: rgba(99, 102, 241, 0.1);
-        }
-
-        /* Estilo de Tarjetas (Grid Items) */
-        .file-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .file-card:active {
-            transform: scale(0.98); /* Efecto de "pulsar" nativo */
         }
 
         /* Botones de acción */
@@ -35,8 +27,8 @@
         
         /* Modales */
         #image-modal-backdrop, #edit-modal-backdrop, #delete-modal-backdrop {
-            background-color: rgba(0, 0, 0, 0.96); /* Fondo casi negro para inmersión */
-            backdrop-filter: blur(5px); /* Efecto blur estilo iOS */
+            background-color: rgba(0, 0, 0, 0.96);
+            backdrop-filter: blur(5px);
         }
     </style>
 </head>
@@ -46,10 +38,10 @@
 
         <header class="mb-6 flex justify-between items-center border-b border-gray-800 pb-4">
             <div>
-                <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-                    KLMZ
+                <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-widest">
+                    KLMZ STORAGE
                 </h1>
-                <p id="auth-status" class="text-xs text-gray-500 font-medium">Cargando...</p>
+                <p id="auth-status" class="text-xs text-gray-500 font-medium mt-1">Cargando...</p>
             </div>
             <button id="logout-button" onclick="handleSignOut()" class="px-3 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 text-xs font-bold rounded-full hover:bg-gray-700 transition hidden">
                 Salir
@@ -57,7 +49,7 @@
         </header>
         
         <div id="auth-controls" class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700 shadow-xl max-w-sm mx-auto mt-10 hidden">
-            <h2 class="text-lg font-bold text-white mb-4 text-center">Bienvenido</h2>
+            <h2 class="text-lg font-bold text-white mb-4 text-center">Acceso Seguro</h2>
             
             <input type="email" id="email-input" placeholder="Correo" class="w-full p-3 mb-3 bg-gray-900/80 text-white rounded-xl border border-gray-700 focus:border-indigo-500 outline-none text-sm">
             <input type="password" id="password-input" placeholder="Contraseña" class="w-full p-3 mb-4 bg-gray-900/80 text-white rounded-xl border border-gray-700 focus:border-indigo-500 outline-none text-sm">
@@ -92,16 +84,16 @@
                         <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 014 4v2m-5 4H9m0 0l3-3m-3 3l3 3" /></svg>
                     </div>
                     <button onclick="document.getElementById('fileInput').click()" id="upload-button" class="px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-indigo-500 transition active:scale-95">
-                        Subir Fotos / Videos
+                        Subir Archivos (Máx 2.5GB)
                     </button>
                 </div>
 
                 <div id="upload-indicator" class="hidden flex flex-col items-center">
                     <svg class="animate-spin h-8 w-8 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span class="text-sm font-medium text-gray-300">Subiendo...</span>
+                    <span class="text-sm font-medium text-gray-300">Subiendo a la nube...</span>
                 </div>
             </div>
-            <div id="message-box" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-2xl text-xs font-bold hidden transition-all"></div>
+            <div id="message-box" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-2xl text-xs font-bold hidden transition-all text-center w-max max-w-[90%]"></div>
         </div>
 
         <section id="file-list-section" class="hidden">
@@ -136,7 +128,7 @@
                 <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </div>
             <h3 class="text-lg font-bold text-white mb-2">¿Eliminar?</h3>
-            <p class="text-xs text-gray-400 mb-6">Esta acción borrará "<span id="delete-file-name" class="text-white"></span>" de tu lista.</p>
+            <p class="text-xs text-gray-400 mb-6">Esta acción borrará "<span id="delete-file-name" class="text-white"></span>".</p>
             <div class="flex gap-2">
                 <button onclick="hideDeleteModal()" class="flex-1 py-2 bg-gray-700 text-white rounded-lg font-semibold">No</button>
                 <button onclick="confirmDeleteFile()" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold shadow">Sí, borrar</button>
@@ -167,7 +159,9 @@
         const R2_BUCKET_NAME = 'klmzstorage';
         const WORKER_ENDPOINT = 'https://klmz-r2-signer-cli-production.klmzr.workers.dev/get-signed-url'; 
         const R2_PUBLIC_URL_BASE = 'https://pub-897465909ad64d05890fbf61be36d501.r2.dev'; 
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; 
+        
+        // --- CAMBIO PRINCIPAL: Límite aumentado a 2.5 GB ---
+        const MAX_FILE_SIZE = 2.5 * 1024 * 1024 * 1024; 
 
         // Vars
         let app, db, auth, userId = null, isUploading = false, authReady = false;
@@ -206,35 +200,42 @@
         window.showMessage = (msg, type = 'info') => {
             if (!msg) { els.messageBox.classList.add('hidden'); return; }
             els.messageBox.textContent = msg;
-            els.messageBox.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-5 py-2.5 rounded-full shadow-2xl text-xs font-bold transition-all duration-300';
-            const colors = type === 'error' ? 'bg-red-500 text-white' : (type === 'success' ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white');
-            els.messageBox.className += ` ${colors}`;
+            const colors = type === 'error' ? 'bg-red-600 text-white' : (type === 'success' ? 'bg-green-600 text-white' : 'bg-indigo-600 text-white');
+            els.messageBox.className = `fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-5 py-2.5 rounded-full shadow-2xl text-xs font-bold transition-all duration-300 ${colors}`;
             els.messageBox.classList.remove('hidden');
             if (type !== 'error') setTimeout(() => els.messageBox.classList.add('hidden'), 3000);
         };
 
-        const formatSize = (b) => b === 0 ? '0 B' : `${parseFloat((b / Math.pow(1024, Math.floor(Math.log(b) / Math.log(1024)))).toFixed(1))} ${['B', 'KB', 'MB', 'GB'][Math.floor(Math.log(b) / Math.log(1024))]}`;
+        const formatSize = (b) => b === 0 ? '0 B' : `${parseFloat((b / Math.pow(1024, Math.floor(Math.log(b) / Math.log(1024)))).toFixed(1))} ${['B', 'KB', 'MB', 'GB', 'TB'][Math.floor(Math.log(b) / Math.log(1024))]}`;
 
-        // --- Renderizado de Tarjeta (Grid Item) ---
+        // --- Renderizado ---
         function renderFileItem(file) {
             const date = file.uploadedAt?.toDate ? file.uploadedAt.toDate().toLocaleDateString() : '';
             const url = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`;
             const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
             
-            // Imagen: usa la foto real. Video/Otro: usa icono SVG
-            const previewContent = isImage 
-                ? `<img src="${url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy">` 
-                : `<div class="flex items-center justify-center h-full text-gray-500"><svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>`;
+            // Si es imagen, muestra la foto. Si es video, un icono de video.
+            let previewContent = '';
+            
+            if (isImage) {
+                previewContent = `<img src="${url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy">`;
+            } else if (isVideo) {
+                // Icono de video
+                previewContent = `<div class="flex items-center justify-center h-full text-indigo-400 bg-gray-900"><svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.7V15.3a1 1 0 01-1.447.886L15 14M4 14V9a2 2 0 012-2h10a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2z"></path></svg></div>`;
+            } else {
+                // Icono genérico
+                previewContent = `<div class="flex items-center justify-center h-full text-gray-500 bg-gray-900"><svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>`;
+            }
 
-            // Acción Click en la imagen: Abrir modal
-            const clickAction = isImage ? `onclick="showImageModal('${url}')"` : '';
+            const clickAction = isImage ? `onclick="showImageModal('${url}')"` : (isVideo ? `onclick="downloadFile('${file.r2Key}', '${file.name}')"` : '');
 
             return `
                 <div class="group relative bg-gray-800 rounded-2xl overflow-hidden border border-gray-700/50 shadow-lg hover:shadow-indigo-500/10 transition-all duration-300">
                     
                     <div class="aspect-square w-full bg-gray-900 cursor-pointer overflow-hidden relative" ${clickAction}>
                         ${previewContent}
-                        ${!isImage ? `<span class="absolute bottom-2 right-2 text-[10px] bg-gray-800/80 px-1.5 rounded text-gray-300 uppercase font-bold">${file.name.split('.').pop()}</span>` : ''}
+                        <span class="absolute bottom-2 right-2 text-[10px] bg-black/60 backdrop-blur-sm px-1.5 rounded text-white uppercase font-bold tracking-wide border border-white/10">${file.name.split('.').pop()}</span>
                     </div>
 
                     <div class="p-3">
@@ -260,7 +261,7 @@
             `;
         }
 
-        // --- Modales (Animación y Lógica) ---
+        // --- Modales ---
         const toggleModal = (backdrop, content, show) => {
             if (show) {
                 backdrop.classList.remove('hidden');
@@ -316,7 +317,7 @@
 
         window.downloadFile = async (r2Key, fileName) => {
             const cacheBuster = "?t=" + new Date().getTime();
-            window.showMessage("Descargando...", 'info');
+            window.showMessage(`Descargando ${fileName}...`, 'info');
             try {
                 const res = await fetch(`${R2_PUBLIC_URL_BASE}/${r2Key}${cacheBuster}`);
                 if (!res.ok) throw new Error();
@@ -325,8 +326,9 @@
                 const a = document.createElement('a');
                 a.href = url; a.download = fileName; document.body.appendChild(a); a.click();
                 setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-                window.showMessage("Listo.", 'success');
+                window.showMessage("Descarga completa.", 'success');
             } catch (e) {
+                // Fallback para videos o si fetch falla
                 window.open(`${R2_PUBLIC_URL_BASE}/${r2Key}`, '_blank');
             }
         };
@@ -341,7 +343,10 @@
 
             let count = 0;
             for (const file of files) {
-                if (file.size > MAX_FILE_SIZE) continue;
+                if (file.size > MAX_FILE_SIZE) {
+                    window.showMessage(`${file.name} supera 2.5GB`, 'error');
+                    continue;
+                }
                 window.showMessage(`Subiendo ${file.name}...`);
                 try {
                     const key = `${userId}/${crypto.randomUUID()}.${file.name.split('.').pop()}`;
@@ -352,7 +357,7 @@
                         name: file.name, type: file.type, size: file.size, r2Key: key, r2Bucket: R2_BUCKET_NAME, uploaderId: userId, uploadedAt: serverTimestamp()
                     });
                     count++;
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error(e); window.showMessage(`Error en ${file.name}`, 'error'); }
             }
             window.showMessage(count > 0 ? `¡${count} archivos subidos!` : "Error en subida", count > 0 ? 'success' : 'error');
             isUploading = false;
