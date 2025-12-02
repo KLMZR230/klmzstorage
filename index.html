@@ -6,44 +6,81 @@
     <title>KLMZ STORAGE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Deshabilitar selección y toques complejos */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            -webkit-tap-highlight-color: transparent;
-            /* Evita el zoom de doble toque en navegadores modernos */
-            touch-action: manipulation; 
-            /* Evita la selección de texto e imágenes (Protección básica) */
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            /* Evita arrastrar imágenes */
-            -webkit-user-drag: none;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+        
+        /* Sidebar Transitions */
+        #sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        #sidebar-backdrop { transition: opacity 0.3s ease; }
         
         /* Drag & Drop */
         #drop-area { transition: all 0.3s ease; }
         #drop-area.drag-active { border-color: #6366f1; background-color: rgba(99, 102, 241, 0.1); }
+        
+        /* Scrollbar personalizada para el sidebar */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+        /* Estilos generales */
         .action-btn { @apply p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors duration-200; }
         #image-modal-backdrop, #edit-modal-backdrop, #delete-modal-backdrop { background-color: rgba(0, 0, 0, 0.96); backdrop-filter: blur(5px); }
         #progress-fill { transition: width 0.1s linear; }
-        
-        /* Deshabilitar clic derecho en imágenes para evitar "Guardar como" */
         img { pointer-events: none; }
     </style>
 </head>
-<body class="min-h-screen text-gray-100 pb-10" oncontextmenu="return false;">
+<body class="min-h-screen text-gray-100 pb-10 overflow-x-hidden" oncontextmenu="return false;">
 
-    <div class="container mx-auto px-4 py-6 max-w-6xl">
+    <div class="container mx-auto px-4 py-6 max-w-6xl relative">
 
         <header class="mb-6 flex justify-between items-center border-b border-gray-800 pb-4">
             <div>
                 <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-widest pointer-events-none">KLMZ STORAGE</h1>
                 <p id="auth-status" class="text-xs text-gray-500 font-medium mt-1">Cargando...</p>
             </div>
-            <button id="logout-button" onclick="handleSignOut()" class="px-3 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 text-xs font-bold rounded-full hover:bg-gray-700 transition hidden">Salir</button>
+            
+            <button id="menu-btn" onclick="toggleMenu(true)" class="hidden p-2 text-gray-300 hover:text-white focus:outline-none">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
         </header>
+
+        <div id="sidebar-backdrop" class="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm hidden opacity-0" onclick="toggleMenu(false)"></div>
+        
+        <div id="sidebar" class="fixed top-0 right-0 z-50 h-full w-80 bg-gray-900 border-l border-gray-800 shadow-2xl transform translate-x-full flex flex-col">
+            
+            <div class="p-5 flex justify-between items-center border-b border-gray-800">
+                <h2 class="text-lg font-bold text-white">Mi Perfil</h2>
+                <button onclick="toggleMenu(false)" class="text-gray-400 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+
+            <div class="p-6 flex flex-col items-center border-b border-gray-800 bg-gray-800/50">
+                <div class="relative group cursor-pointer" onclick="document.getElementById('profile-upload').click()">
+                    <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-gray-700 group-hover:border-indigo-500 transition-colors shadow-lg">
+                        <img id="sidebar-avatar" src="https://ui-avatars.com/api/?name=User&background=random" class="w-full h-full object-cover" alt="Perfil">
+                    </div>
+                    <div class="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </div>
+                </div>
+                <input type="file" id="profile-upload" class="hidden" accept="image/*" onchange="handleProfileUpload(this.files)">
+                
+                <h3 id="sidebar-email" class="mt-4 text-white font-bold text-sm truncate w-full text-center">usuario@email.com</h3>
+                <p class="text-xs text-gray-500 mt-1">Toca la foto para cambiarla</p>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scroll p-4">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Mis Videos</h3>
+                <div id="sidebar-videos-list" class="space-y-3">
+                    <p class="text-center text-gray-600 text-xs py-4">No hay videos.</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-800 bg-gray-900">
+                <button onclick="handleSignOut()" class="w-full py-3 bg-red-600/10 text-red-500 font-bold rounded-xl hover:bg-red-600 hover:text-white transition flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
         
         <div id="auth-controls" class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700 shadow-xl max-w-sm mx-auto mt-10 hidden">
             <h2 class="text-lg font-bold text-white mb-4 text-center">Acceso Seguro</h2>
@@ -127,12 +164,12 @@
     <div id="image-modal-backdrop" class="fixed inset-0 z-50 bg-black flex items-center justify-center hidden transition-opacity duration-300" onclick="hideImageModal()" oncontextmenu="return false;">
         <button onclick="hideImageModal()" class="absolute top-4 right-4 text-white/80 hover:text-white z-50 p-2 bg-gray-800/50 rounded-full"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
         <img id="modal-image" src="" alt="Full" class="max-h-screen max-w-full object-contain transition-transform duration-300 transform scale-95 select-none" style="pointer-events: auto;"> 
-        </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, orderBy, serverTimestamp, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, setDoc, getDoc, onSnapshot, collection, query, orderBy, serverTimestamp, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -161,7 +198,6 @@
             authControls: document.getElementById('auth-controls'),
             uploadSection: document.getElementById('upload-section'),
             fileListSection: document.getElementById('file-list-section'),
-            logoutButton: document.getElementById('logout-button'),
             emailInput: document.getElementById('email-input'),
             passwordInput: document.getElementById('password-input'),
             emptyState: document.getElementById('empty-state'),
@@ -177,16 +213,20 @@
             progressFill: document.getElementById('progress-fill'),
             progressPercent: document.getElementById('progress-percent'),
             progressText: document.getElementById('progress-text'),
-            progressDetail: document.getElementById('progress-detail')
+            progressDetail: document.getElementById('progress-detail'),
+            // Sidebar Elements
+            sidebar: document.getElementById('sidebar'),
+            sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+            menuBtn: document.getElementById('menu-btn'),
+            sidebarAvatar: document.getElementById('sidebar-avatar'),
+            sidebarEmail: document.getElementById('sidebar-email'),
+            sidebarVideosList: document.getElementById('sidebar-videos-list')
         };
 
         let editState = { fileId: null, currentName: null };
         let deleteState = { fileId: null };
 
-        // PREVENIR ZOOM DOBLE TAP (JS)
-        document.addEventListener('dblclick', function(event) {
-            event.preventDefault();
-        }, { passive: false });
+        document.addEventListener('dblclick', function(event) { event.preventDefault(); }, { passive: false });
 
         // --- Helpers ---
         window.showMessage = (msg, type = 'info') => {
@@ -206,24 +246,63 @@
             els.progressText.textContent = text;
         }
 
+        // --- SIDEBAR LOGIC ---
+        window.toggleMenu = (show) => {
+            if (show) {
+                els.sidebarBackdrop.classList.remove('hidden');
+                setTimeout(() => {
+                    els.sidebarBackdrop.classList.remove('opacity-0');
+                    els.sidebar.classList.remove('translate-x-full');
+                }, 10);
+            } else {
+                els.sidebar.classList.add('translate-x-full');
+                els.sidebarBackdrop.classList.add('opacity-0');
+                setTimeout(() => els.sidebarBackdrop.classList.add('hidden'), 300);
+            }
+        };
+
+        // --- UPLOAD CORE (XHR) ---
         function uploadFileXHR(url, file, onProgress) {
             return new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open('PUT', url, true);
                 xhr.setRequestHeader('Content-Type', file.type);
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        const percentComplete = (e.loaded / e.total) * 100;
-                        onProgress(percentComplete);
-                    }
-                };
+                xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress((e.loaded / e.total) * 100); };
                 xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response); else reject(new Error(`Upload failed: ${xhr.statusText}`)); };
                 xhr.onerror = () => reject(new Error("Network error"));
                 xhr.send(file);
             });
         }
 
-        // --- Renderizado ---
+        // --- PROFILE PICTURE UPLOAD ---
+        window.handleProfileUpload = async (files) => {
+            if (!files.length || !userId) return;
+            const file = files[0];
+            window.showMessage("Actualizando foto de perfil...", 'info');
+            try {
+                // 1. Get Signed URL for profile pic (stored in separate path)
+                const key = `${userId}/profile_pic/${crypto.randomUUID()}.${file.name.split('.').pop()}`;
+                const signRes = await fetch(`${WORKER_ENDPOINT}?key=${key}&contentType=${file.type}`);
+                const { signedUrl } = await signRes.json();
+                
+                // 2. Upload to R2
+                await uploadFileXHR(signedUrl, file, () => {}); // No progress needed for small profile pic
+                
+                // 3. Update Firestore User Document
+                const photoURL = `${R2_PUBLIC_URL_BASE}/${key}`;
+                await setDoc(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), { photoURL: photoURL }, { merge: true });
+                
+                // 4. Update UI
+                els.sidebarAvatar.src = photoURL;
+                window.showMessage("Foto de perfil actualizada.", 'success');
+                
+            } catch (error) {
+                console.error(error);
+                window.showMessage("Error al actualizar foto.", 'error');
+            }
+        };
+
+        // --- RENDER FUNCTIONS ---
         function renderFileItem(file) {
             const date = file.uploadedAt?.toDate ? file.uploadedAt.toDate().toLocaleDateString() : '...';
             const url = `${R2_PUBLIC_URL_BASE}/${file.r2Key}`;
@@ -262,18 +341,28 @@
                 </div>`;
         }
 
-        // --- Modales ---
+        // Render Sidebar Video Item (Simplified)
+        function renderSidebarVideo(file) {
+            return `
+                <div class="flex items-center gap-3 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition cursor-pointer" onclick="downloadFile('${file.r2Key}', '${file.name}')">
+                    <div class="w-8 h-8 bg-indigo-900 rounded flex items-center justify-center text-indigo-400 shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-bold text-gray-200 truncate">${file.name}</p>
+                        <p class="text-[10px] text-gray-500">${formatSize(file.size)}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Modals ---
         const toggleModal = (backdrop, content, show) => {
             if (show) {
                 backdrop.classList.remove('hidden');
-                setTimeout(() => {
-                    backdrop.classList.remove('opacity-0');
-                    if(content) content.classList.remove('scale-95');
-                }, 10);
+                setTimeout(() => { backdrop.classList.remove('opacity-0'); if(content) content.classList.remove('scale-95'); }, 10);
             } else {
-                backdrop.classList.add('opacity-0');
-                if(content) content.classList.add('scale-95');
-                setTimeout(() => backdrop.classList.add('hidden'), 200);
+                backdrop.classList.add('opacity-0'); if(content) content.classList.add('scale-95'); setTimeout(() => backdrop.classList.add('hidden'), 200);
             }
         };
 
@@ -284,7 +373,6 @@
         window.showDeleteModal = (id, name) => { deleteState = { fileId: id }; els.deleteFileName.textContent = name; toggleModal(els.deleteModalBackdrop, els.deleteModalContent, true); };
         window.hideDeleteModal = () => toggleModal(els.deleteModalBackdrop, els.deleteModalContent, false);
 
-        // --- Acciones ---
         window.saveNewFileName = async () => {
             const newName = els.newFileNameInput.value.trim();
             if (!newName || newName === editState.currentName) return window.hideEditModal();
@@ -313,7 +401,7 @@
             } catch (e) { window.open(`${R2_PUBLIC_URL_BASE}/${r2Key}`, '_blank'); }
         };
 
-        // --- Core Upload ---
+        // --- Process Queue ---
         async function processQueue(files) {
             if (isUploading) return;
             isUploading = true;
@@ -354,22 +442,34 @@
         }
         window.handleFiles = (l) => { if(authReady && userId && l?.length) processQueue(Array.from(l)); };
 
-        // --- UI & Auth ---
+        // --- UI & Init ---
         function updateUI(user) {
             if (user) {
                 userId = user.uid;
                 els.authStatus.textContent = "";
+                els.sidebarEmail.textContent = user.email || "Usuario";
                 els.authControls.classList.add('hidden');
                 els.uploadSection.classList.remove('hidden');
                 els.fileListSection.classList.remove('hidden');
-                els.logoutButton.classList.remove('hidden');
+                els.menuBtn.classList.remove('hidden'); // Mostrar botón hamburguesa
                 
+                // Get User Profile Pic from Firestore
+                getDoc(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId)).then(snap => {
+                    if(snap.exists() && snap.data().photoURL) els.sidebarAvatar.src = snap.data().photoURL;
+                });
+
                 const q = query(collection(doc(db, 'artifacts', firebaseConfig.projectId, 'users', userId), 'klmz_storage_files'), orderBy('uploadedAt', 'desc'));
                 onSnapshot(q, (s) => {
                     const files = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    
+                    // Render Main List
                     els.fileList.innerHTML = files.map(renderFileItem).join('');
                     els.fileCount.textContent = `${files.length} archivo${files.length!==1?'s':''}`;
                     els.emptyState.classList.toggle('hidden', files.length > 0);
+
+                    // Render Sidebar Videos List (Filtrado)
+                    const videos = files.filter(f => f.type.startsWith('video/'));
+                    els.sidebarVideosList.innerHTML = videos.length ? videos.map(renderSidebarVideo).join('') : '<p class="text-center text-gray-600 text-xs py-4">No hay videos.</p>';
                 });
             } else {
                 userId = null;
@@ -377,7 +477,8 @@
                 els.authControls.classList.remove('hidden');
                 els.uploadSection.classList.add('hidden');
                 els.fileListSection.classList.add('hidden');
-                els.logoutButton.classList.add('hidden');
+                els.menuBtn.classList.add('hidden');
+                window.toggleMenu(false); // Cerrar menú si sale
             }
         }
 
@@ -385,6 +486,9 @@
         window.handleEmailSignIn = async () => { try { await signInWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); } catch(e) { window.showMessage(e.message, 'error'); } };
         window.handleEmailSignUp = async () => { try { await createUserWithEmailAndPassword(auth, els.emailInput.value, els.passwordInput.value); } catch(e) { window.showMessage(e.message, 'error'); } };
         window.handleSignOut = () => signOut(auth);
+
+        // Exponer función toggleMenu
+        window.toggleMenu = toggleMenu;
 
         window.onload = () => {
             app = initializeApp(firebaseConfig);
